@@ -1,0 +1,402 @@
+//#include <sched.h>
+
+//#include <omp.h>
+
+#include <sys/time.h>
+#include <sys/sysinfo.h>
+
+#include "base.h"
+#include "train.h"
+#include "lr.h"
+
+static const size_t BUF_SIZE = 4096;
+static const size_t ACC_DATA_SIZE = 1000;
+static const unsigned int MAX_FEATURE_SIZE = 1000;
+
+void
+usage(const char *prog) {
+  printf("Read training data then classify test data using logistic regression:\n");
+  printf("Usage:\n");
+  printf("%s [options] [training_data]\n\n", prog);
+  printf("Options:\n");
+  printf("-s <int>   Shuffle dataset after each iteration. default 1\n");    
+  printf("-i <int>   Maximum iterations. default 500\n");   
+  printf("-e <float> Convergence rate. default 0.005\n");    
+  printf("-a <float> Learning rate. default 0.001\n"); 
+  printf("-l <float> L1 regularization weight. default 0.0001\n"); 
+  //printf("-m <file>  Read weights from file\n");    
+  //printf("-o <file>  Write weights to file\n");   
+  printf("-t <file>  Test file to classify\n");     
+  //printf("-p <file>  Write predictions to file\n");     
+  printf("-r <float> Randomise weights between -1 and 1, otherwise 0\n");    
+  printf("-c <int>   cpu cores. default 4\n");    
+  //printf("-v         Verbose.\n\n");      
+}
+
+bool
+read_data(const char *data_file, unsigned short **pplabels, double ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
+  char buf[BUF_SIZE];
+  
+  //size_t read_size = readlink(data_file, buf, BUF_SIZE);
+  //if (read_size > 0) {
+  //  buf[read_size] = 0;
+  //  data_file = buf;
+  //}
+
+  int fd;
+  if (-1 == (fd = open(data_file, O_RDONLY))) {
+    printf("open %s error\n", data_file);
+    return false;
+  }
+
+  *pdata_size = 0;
+
+  size_t feature_size = *pfeature_size? *pfeature_size:MAX_FEATURE_SIZE;
+  double *features = (double*)calloc(feature_size, sizeof(double));
+
+  unsigned int available_data_size = 0;
+
+  bool overflow = false;
+  unsigned short label = 0;
+  size_t col_idx = 0;
+  size_t i, j = 0;
+  size_t idx = 0;
+  size_t read_size, total_size;
+
+  while ((read_size = read(fd, &buf[idx], BUF_SIZE - idx)) > 0) {
+    total_size = idx + read_size;
+    for (i = idx; i < total_size; ++i) {
+      if (overflow) {
+        if ('\n' == buf[i]) {
+          j = i + 1;
+          overflow = false;
+        }
+        continue;
+      }
+      //if (' ' == buf[i]) {
+      if (',' == buf[i]) {
+        if (0 == col_idx) {
+          if ('1' == buf[j] || '+' == buf[j]) {
+            label = 1;
+          }
+          else {
+            label = 0;
+          }
+          j = i + 1;
+          col_idx = 1;
+          continue;
+        }
+
+        if (col_idx >= feature_size) {
+          printf("overflow\n");
+          memset(features, 0, sizeof(double) * feature_size);
+          col_idx = 0;
+          overflow = true;
+          continue;
+        }
+
+        buf[i] = 0;
+        features[col_idx - 1] = atof(&buf[j]);
+        //features[col_idx - 1] = atof(&(strchr(&buf[j], ':')[1]));
+        ++col_idx;
+        j = i + 1;
+      }
+      else if ('\n' == buf[i]) {
+        buf[i] = 0;
+        features[col_idx - 1] = atof(&buf[j]);
+        //if (col_idx > feature_size) {
+        //  feature_size = col_idx;
+        //}
+
+        if (available_data_size <= 0) {
+          available_data_size = ACC_DATA_SIZE;
+          *pppdata = (double**)realloc(*pppdata, sizeof(double*) * (*pdata_size + ACC_DATA_SIZE)); 
+          *pplabels = (unsigned short*)realloc(*pplabels, sizeof(unsigned short) * (*pdata_size + ACC_DATA_SIZE)); 
+        }
+        (*pplabels)[*pdata_size] = label;
+
+        if (0 == *pfeature_size) {
+          feature_size = *pfeature_size = col_idx;
+          (*pppdata)[*pdata_size] = (double*)realloc(features, sizeof(double) * feature_size);
+        }
+        else {
+          (*pppdata)[*pdata_size] = features;
+        }
+        features = (double*)calloc(feature_size, sizeof(double));
+
+        col_idx = 0;
+        j = i + 1;
+
+        --available_data_size;
+        ++(*pdata_size);
+
+        //memset(features, 0, sizeof(double) * MAX_FEATURE_SIZE);
+      }
+    }
+    if (j < total_size) {
+      idx = total_size - j;
+      memcpy(buf, &buf[j], idx);
+    } 
+    else {
+      idx = 0;
+    }
+    j = 0;
+  }
+  close(fd);
+  free(features);
+
+  //if (0 == *pfeature_size) {
+  //  *pfeature_size = feature_size;
+  //}
+  return true;
+} 
+
+void
+model_evaluation_index(const char *test_file, size_t feature_size, double *weights) {
+  size_t i, j;
+  uint32_t sparsity = 0;
+  for (i = 0; i < feature_size; ++i) {
+    if (fabs(weights[i]) > 1e-5) {
+      ++sparsity;
+    }
+  }
+  printf("# sparsity:    %1.4f (%d/%lu)\n", (double)sparsity / feature_size, sparsity, feature_size);
+
+  double **test_data = NULL;
+  unsigned short *test_labels = NULL;
+  size_t test_data_size = 0;
+  size_t test_feature_size = feature_size;
+  if (!read_data(test_file, &test_labels, &test_data, &test_data_size, &test_feature_size)) {
+    return;
+  }
+
+  printf("\n# classifying\n");
+  double tp = 0.0, fp = 0.0, tn = 0.0, fn = 0.0;
+
+  size_t t_idx = -1, f_idx = test_data_size;
+  double *ary_predicted = calloc(test_data_size, sizeof(double));
+  double predicted;
+
+  for (i = 0; i < test_data_size; ++i) {
+    predicted = classify(test_data[i], weights, test_feature_size);
+    if ((0 == test_labels[i] && predicted < 0.5) || (1 == test_labels[i] && predicted >= 0.5)) {
+      if (1 == test_labels[i]) {
+        ++tp;
+        ary_predicted[++t_idx] = predicted;
+      }
+      else {
+        ++tn;
+        ary_predicted[--f_idx] = predicted;
+      }    
+    }
+    else{
+      if (1 == test_labels[i]) {
+        ++fn;
+        ary_predicted[++t_idx] = predicted;
+      }
+      else {
+        ++fp;
+        ary_predicted[--f_idx] = predicted;
+      }    
+    }
+  }
+
+  double auc_numerator = 0;  
+  for (i = 0; i < f_idx; ++i) {
+    for(j = f_idx; j < test_data_size; ++j) {
+      if (ary_predicted[i] > ary_predicted[j]) {
+        auc_numerator += 1;
+      }
+      else if (fabs(ary_predicted[i] - ary_predicted[j]) < 1e-5) {
+        auc_numerator += 0.5;
+      }
+    }
+  }
+
+  free(ary_predicted);
+
+  free(test_labels);
+
+  for (i = 0; i < test_data_size; ++i) {
+    free(test_data[i]);
+  }
+  free(test_data);
+
+  printf ("# accuracy:    %1.4f (%i/%i)\n", ((tp + tn) / (tp + tn + fp + fn)), (int)(tp + tn), (int)(tp + tn + fp + fn));
+  printf ("# precision:   %1.4f\n", tp / (tp + fp));
+  printf ("# recall:      %1.4f\n", tp / (tp + fn));
+  printf ("# mcc:         %1.4f\n", ((tp * tn) - (fp * fn)) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)));
+  printf ("# tp:          %i\n", (int)tp);
+  printf ("# tn:          %i\n", (int)tn);
+  printf ("# fp:          %i\n", (int)fp);    
+  printf ("# fn:          %i\n", (int)fn);
+  printf ("# auc:         %1.4f\n", auc_numerator / (double)((tp + fn) * (tn + fp)));
+
+  for (i = 0; i < feature_size; ++i) {
+    printf("%f ", weights[i]);
+  }
+  printf("\n");
+}
+
+int
+main (int argc, char* const argv[]) {
+  // Learning rate
+  double alpha = 0.001;
+
+  // L1 penalty weight
+  double l1 = 0.0001;
+
+  // Max iterations
+  unsigned int maxit = 500;
+
+  // Shuffle data set
+  int shuf = 1;
+
+  // Convergence threshold
+  double eps = 0.005;
+
+  // Verbose
+  //int verbose = 0;
+
+  // Randomise weights
+  int randw = 0;
+
+  int cpus = 4;
+
+  // Read model file
+  //const char *model_in = NULL;
+
+  // Write model file
+  //const char *model_out = NULL;
+
+  // Data fiile
+  const char *train_file = NULL;
+  
+  // Test file
+  const char *test_file = NULL;
+  
+  // Predictions file
+  //const char *predict_file = NULL;
+
+  size_t i;
+  
+  int ch;
+
+  if (argc < 2) {
+    usage(argv[0]);
+    exit(-1);
+  }
+
+  train_file = argv[argc - 1];
+  if ('-' == train_file[0]) {
+    usage(argv[0]);
+    return -1;
+  }
+
+  //while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:m:o:t:p:rv"))) {
+  while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:c:"))) {
+    switch(ch) {
+      case 's':
+        shuf = atoi(optarg);
+        break;
+      case 'i':
+        maxit = atoi(optarg);
+        break;
+      case 'e':
+        eps = atof(optarg);
+        break;
+      case 'a':
+        alpha = atof(optarg);
+        break;
+      case 'l':
+        l1 = atof(optarg);
+        break;
+      //case 'm':
+      //  model_in = optarg;
+      //  break;
+      //case 'o':
+      //  model_out = optarg;
+      //  break;
+      case 't':
+        test_file = optarg;
+        //printf("%s %s\n", optarg, argv[optind]);
+        break;
+      //case 'p':
+      //  predict_file = optarg;
+      //  break;
+      case 'r':
+        randw = 1;
+        break;
+      case 'c':
+        cpus = atoi(optarg);
+        break;
+      //case 'v':
+      //  verbose = 1;
+      //  break;
+      default:
+        usage(argv[0]);
+        return -1;
+    }
+  }
+
+  int nprocs = get_nprocs();
+  if (nprocs < cpus) {
+    cpus = nprocs;
+  }
+
+  double **data = NULL;
+  unsigned short *labels = NULL;
+  size_t data_size = 0;
+  size_t feature_size = 0;
+  if (!read_data(train_file, &labels, &data, &data_size, &feature_size)) {
+    return -1;
+  }
+
+  printf("# data_size:    %lu\n", data_size);
+  printf("# feature_size: %lu\n", feature_size);
+  printf("# cpus:         %d\n", cpus);
+
+  double gama = 0.9;
+  double *sprint_weights = (double*)calloc(feature_size, sizeof(double));
+
+  TRAIN_ARG arg;
+  arg.cpus = cpus;
+  arg.alpha = alpha;
+  arg.gama = gama;
+  arg.l1 = l1;
+  arg.maxit = maxit;
+  arg.shuf = shuf;
+  arg.eps = eps;
+  arg.randw = randw;
+  arg.labels = labels;
+  arg.data = data;
+  arg.data_size = data_size;
+  arg.feature_size = feature_size;
+  arg.sprint_weights = sprint_weights;
+
+  struct timeval tv1, tv2;
+  gettimeofday(&tv1, NULL);
+  train(&arg); 
+  gettimeofday(&tv2, NULL);
+
+  time_t cost_sec = tv2.tv_sec - tv1.tv_sec;
+  suseconds_t cost_us =  tv2.tv_usec - tv1.tv_usec;
+  if (cost_us < 0) {
+    --cost_sec;
+    cost_us = 1000000 - cost_us;
+  }
+  printf("# train cost:  %ld.%06ld\n", cost_sec, cost_us);
+
+  free(labels);
+
+  for (i = 0; i < data_size; ++i) {
+    free(data[i]);
+  }
+  free(data);
+
+  model_evaluation_index(test_file, feature_size, sprint_weights);
+
+
+  free(sprint_weights);
+  return 0;
+}

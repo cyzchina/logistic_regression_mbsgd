@@ -1,0 +1,6 @@
+lr_mbsgd
+*.csv
+*~
+*.swp
+*.o
+*.d
