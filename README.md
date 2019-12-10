@@ -1,5 +1,5 @@
 # lr_mbsgd
-logistic regression mini batch stochastic gradient descent  
+logistic regression mini batch stochastic gradient descend  
 
 Usage:  
 ./lr_mbsgd [options] [training_data]  
@@ -19,5 +19,3 @@ Example:
 
 csv:  
 the first column is label without head and index  
-
-
