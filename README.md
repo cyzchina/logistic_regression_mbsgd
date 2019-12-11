@@ -18,4 +18,4 @@ Example:
 ./lr_mbsgd -i 20 -c 8 -t test.csv train.csv  
 
 csv:  
-the first column is label without head and index  
+the first column is label without header and index  
