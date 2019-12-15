@@ -44,9 +44,9 @@ test_data = pd.read_csv('test.csv')
 new_data = test_data.iloc[:, 1:]  
 test_labels = test_data.iloc[:, 0]  
 
-# params train_data, <maxit>, <eps>, <cpus>, <alpha>, <l1>, <gama>  
+# params train_data, [maxit], [eps], [cpus], [alpha], [l1], [gama]  
 trainer = MBSGD(train_data, cpus=4)  
-# params  <maxit>, <eps>, <cpus>, <alpha>, <l1>, <gama>  
+# params  [maxit], [eps], [cpus], [alpha], [l1], [gama]  
 model = trainer.Train(maxit=4)  
 print(model.cost_sec)  
 
