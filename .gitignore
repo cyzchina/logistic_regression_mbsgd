@@ -1,6 +1,14 @@
 lr_mbsgd
+*.b64
+*.so
+test*
 *.csv
 *~
 *.swp
-*.o
-*.d
+*.pyc
+__pycache__
+obj/*
+dep/*
+python/build/*
+python/dist/*
+python/mbsgd.egg-info/*

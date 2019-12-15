@@ -10,6 +10,13 @@ void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
 
+  //for (i = 0; i < parg->data_size; ++i) {
+  //  for (j = 0; j < parg->feature_size; ++j) {
+  //    printf("%1.4f ", parg->data[i + j * parg->data_size]);
+  //  }
+  //  printf("\n");
+  //}
+
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
 
   size_t weights_size = sizeof(double) * parg->feature_size;
@@ -21,17 +28,18 @@ train(const TRAIN_ARG *parg) {
       weights[i] = -1.0 + 2.0 * ((double)randoms[i] / UINT32_MAX); 
     }
   }
-  //else {
-  //  memset(weights, 0, weights_size);
-  //}
 
+#ifndef _PYTHON_MBSGD
   printf("\n# stochastic gradient descent\n");
+#endif
 
   bool sprint = false;
   double norm = 1.0;
   double min_norm;
   double old_norm = 1.0;
+#ifndef _PYTHON_MBSGD
   double l1n = 0;
+#endif
   double mu = 0;
   //double gama = 0.9;
   double y1 = pow(59, -1.0 / parg->data_size); 
@@ -43,8 +51,6 @@ train(const TRAIN_ARG *parg) {
   size_t sprint_maxit = parg->maxit + 30;
 
   double *old_weights = (double*)calloc(parg->feature_size, sizeof(double));
-  //double *old_pd = (double*)calloc(parg->feature_size, sizeof(double));
-  //double *v = (double*)calloc(parg->feature_size, sizeof(double));
   double *total_l1 = (double*)calloc(parg->feature_size, sizeof(double));
 
   uint32_t *index = (uint32_t*)calloc(parg->data_size, sizeof(uint32_t));
@@ -55,8 +61,6 @@ train(const TRAIN_ARG *parg) {
     orig_batch = 1;
   }
   batch = orig_batch;
-
-  //double *z = (double*)calloc(orig_batch, sizeof(double));
 
   for (i = 1; i < parg->data_size; ++i) {
     index[i] = i;
@@ -165,10 +169,13 @@ train(const TRAIN_ARG *parg) {
     //printf("\n");
 
     norm = vecnorm(weights, old_weights, parg->feature_size);
+
+#ifndef _PYTHON_MBSGD
     if (n && n % 100 == 0) {       
       l1n = l1norm(weights, parg->feature_size);
       printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
     }
+#endif
 
     ++n;
     if (sprint) {
@@ -198,7 +205,11 @@ train(const TRAIN_ARG *parg) {
       //y2 = 1.0;
     }               
   }
+
+#ifndef _PYTHON_MBSGD
+  l1n = l1norm(weights, parg->feature_size);
   printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
+#endif
 
   if (!sprint) {
     memcpy(parg->sprint_weights, weights, weights_size);
