@@ -1,7 +1,3 @@
-//#include <sched.h>
-
-//#include <omp.h>
-
 #include <sys/time.h>
 #include <sys/sysinfo.h>
 
@@ -23,18 +19,14 @@ usage(const char *prog) {
   printf("-i <int>   Maximum iterations. default 500\n");   
   printf("-e <float> Convergence rate. default 0.005\n");    
   printf("-a <float> Learning rate. default 0.001\n"); 
-  printf("-l <float> L1 regularization weight. default 0.0001\n"); 
-  //printf("-m <file>  Read weights from file\n");    
-  //printf("-o <file>  Write weights to file\n");   
+  printf("-l <float> L1 regularization weight. default 0.1\n"); 
   printf("-t <file>  Test file to classify\n");     
-  //printf("-p <file>  Write predictions to file\n");     
   printf("-r <float> Randomise weights between -1 and 1, otherwise 0\n");    
   printf("-c <int>   cpu cores. default 4\n");    
-  //printf("-v         Verbose.\n\n");      
 }
 
 bool
-read_data(const char *data_file, unsigned short **pplabels, double ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
+read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
   char buf[BUF_SIZE];
   
   //size_t read_size = readlink(data_file, buf, BUF_SIZE);
@@ -57,7 +49,7 @@ read_data(const char *data_file, unsigned short **pplabels, double ***pppdata, s
   unsigned int available_data_size = 0;
 
   bool overflow = false;
-  unsigned short label = 0;
+  double label = 0;
   size_t col_idx = 0;
   size_t i, j = 0;
   size_t idx = 0;
@@ -111,7 +103,7 @@ read_data(const char *data_file, unsigned short **pplabels, double ***pppdata, s
         if (available_data_size <= 0) {
           available_data_size = ACC_DATA_SIZE;
           *pppdata = (double**)realloc(*pppdata, sizeof(double*) * (*pdata_size + ACC_DATA_SIZE)); 
-          *pplabels = (unsigned short*)realloc(*pplabels, sizeof(unsigned short) * (*pdata_size + ACC_DATA_SIZE)); 
+          *pplabels = (double*)realloc(*pplabels, sizeof(double) * (*pdata_size + ACC_DATA_SIZE)); 
         }
         (*pplabels)[*pdata_size] = label;
 
@@ -163,7 +155,7 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
   printf("# sparsity:    %1.4f (%d/%lu)\n", (double)sparsity / feature_size, sparsity, feature_size);
 
   double **test_data = NULL;
-  unsigned short *test_labels = NULL;
+  double *test_labels = NULL;
   size_t test_data_size = 0;
   size_t test_feature_size = feature_size;
   if (!read_data(test_file, &test_labels, &test_data, &test_data_size, &test_feature_size)) {
@@ -179,8 +171,8 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
 
   for (i = 0; i < test_data_size; ++i) {
     predicted = classify(test_data[i], weights, test_feature_size);
-    if ((0 == test_labels[i] && predicted < 0.5) || (1 == test_labels[i] && predicted >= 0.5)) {
-      if (1 == test_labels[i]) {
+    if ((0 == test_labels[i] && predicted < 0.5) || (1.0 == test_labels[i] && predicted >= 0.5)) {
+      if (1.0 == test_labels[i]) {
         ++tp;
         ary_predicted[++t_idx] = predicted;
       }
@@ -293,7 +285,6 @@ main (int argc, char* const argv[]) {
     return -1;
   }
 
-  //while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:m:o:t:p:rv"))) {
   while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:c:"))) {
     switch(ch) {
       case 's':
@@ -311,28 +302,16 @@ main (int argc, char* const argv[]) {
       case 'l':
         l1 = atof(optarg);
         break;
-      //case 'm':
-      //  model_in = optarg;
-      //  break;
-      //case 'o':
-      //  model_out = optarg;
-      //  break;
       case 't':
         test_file = optarg;
         //printf("%s %s\n", optarg, argv[optind]);
         break;
-      //case 'p':
-      //  predict_file = optarg;
-      //  break;
       case 'r':
         randw = 1;
         break;
       case 'c':
         cpus = atoi(optarg);
         break;
-      //case 'v':
-      //  verbose = 1;
-      //  break;
       default:
         usage(argv[0]);
         return -1;
@@ -345,7 +324,7 @@ main (int argc, char* const argv[]) {
   }
 
   double **data = NULL;
-  unsigned short *labels = NULL;
+  double *labels = NULL;
   size_t data_size = 0;
   size_t feature_size = 0;
   if (!read_data(train_file, &labels, &data, &data_size, &feature_size)) {

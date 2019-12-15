@@ -1,5 +1,4 @@
 #include "base.h"
-
 #include "lr.h"
 
 void*
@@ -22,15 +21,24 @@ task(void *param) {
     cur_batch = last_batch >= parg->task_batch? parg->task_batch:last_batch;
 
     for (j = 0; j < cur_batch; ++j) {
+#ifdef _PYTHON_MBSGD
+      batch_data[j] = &parg->parg_train->data[parg->index[i + j]];
+      predicted = classify(batch_data[j], parg->parg_train->data_size, parg->weights, parg->parg_train->feature_size);
+#else
       batch_data[j] = parg->parg_train->data[parg->index[i + j]];
       predicted = classify(batch_data[j], parg->weights, parg->parg_train->feature_size);
+#endif
       z[j] = predicted - parg->parg_train->labels[parg->index[i + j]];
     }
     parg->mu += parg->y3;
     for (j = 0; j < parg->parg_train->feature_size; ++j) {
       pd = 0;
       for (k = 0; k < cur_batch; ++k) {
+#ifdef _PYTHON_MBSGD
+        pd += z[k] * batch_data[k][j * parg->parg_train->data_size];
+#else
         pd += z[k] * batch_data[k][j];
+#endif
       }
       pd /= cur_batch;
       v[j] = pd + parg->parg_train->gama * (v[j] + pd - old_pd[j]);

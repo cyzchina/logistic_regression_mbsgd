@@ -15,11 +15,15 @@ typedef struct {
   double l1;
   unsigned int maxit;
   int shuf;
-  int cpus;
+  unsigned short cpus;
   double eps;
   int randw;
-  unsigned short *labels;
+  double *labels;
+#ifdef _PYTHON_MBSGD
+  double *data;
+#else
   double **data;
+#endif
   size_t data_size;
   size_t feature_size;
   double *sprint_weights;
