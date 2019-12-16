@@ -72,8 +72,9 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
   }
 
   double *data = NULL;
+  PyObject *array = NULL;
   if (DATAFRAME == new_data_type) {
-    PyObject *array = PyObject_CallMethod(new_data, "__array__", NULL);
+    array = PyObject_CallMethod(new_data, "__array__", NULL);
     if (NULL == array) {
       PyErr_SetString(PyExc_ValueError, "no array");
       return NULL;
