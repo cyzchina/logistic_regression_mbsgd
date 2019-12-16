@@ -19,45 +19,6 @@ MBSGD_MODEL_Init(MBSGD_MODEL *self, PyObject *args) {
 
   PyErr_SetString(PyExc_Exception, "MBSGD_MODEL cannot be instantiated");
   return -1;
-
-  //if (!PyArg_ParseTuple(args, "O", &self->weights)) {
-  //  PyErr_SetString(PyExc_ValueError, "wrong params");
-  //  return -1;
-  //}
-
-  //size_t i;
-  //DATA_TYPE weight_type = get_data_type(self->weights);
-  //switch (weight_type) {
-  //  case LIST:
-  //    self->feature_size = PyList_Size(self->weights);
-  //    //PyList_GET_ITEM(op, i)
-  //    self->sprint_weights = (double*)((PyListObject *)self->weights)->ob_item;
-  //    break;
-  //  case TUPLE:
-  //    self->feature_size = PyTuple_Size(self->weights);
-  //    self->sprint_weights = (double*)((PyTupleObject *)self->weights)->ob_item;
-  //    break;
-  //  case NDARRAY:
-  //    self->feature_size = PyArray_SIZE((PyArrayObject*)self->weights);
-  //    break;
-  //  default:
-  //    PyErr_SetString(PyExc_ValueError, "wrong params");
-  //    return -1;
-  //}
-
-  //if (0 == self->feature_size) {
-  //  PyErr_SetString(PyExc_ValueError, "wrong params");
-  //  return -1;
-  //}
-
-  //Py_INCREF(self->weights);
-
-  //for (i = 0; i < self->feature_size; ++i) {
-  //  printf("%1.4f ", self->sprint_weights[i]); 
-  //}
-  //printf("\n");
-
-  return 0;
 }
 
 static void
@@ -118,7 +79,6 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
       return NULL;
     }
     data = (double*)PyArray_DATA((PyArrayObject*)array);
-	  Py_XDECREF(array);
   }
 
   double predicted;
@@ -137,6 +97,7 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
     }
   }
 
+	Py_XDECREF(array);
   return predictions;
 }
 
