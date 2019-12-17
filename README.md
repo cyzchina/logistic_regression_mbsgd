@@ -44,14 +44,14 @@ the first column is label without header and index
 > new_data = test_data.iloc[:, 1:]  
 > test_labels = test_data.iloc[:, 0]  
 > 
-> # params train_data, [maxit], [eps], [cpus], [alpha], [l1], [gama]  
+> <li># params train_data, [maxit], [eps], [cpus], [alpha], [l1], [gama]</li>  
 > trainer = MBSGD(train_data, cpus=4)  
-> # params  [maxit], [eps], [cpus], [alpha], [l1], [gama]  
+> <li># params  [maxit], [eps], [cpus], [alpha], [l1], [gama]</li>  
 > model = trainer.Train(maxit=4)  
 > print(model.cost_sec)  
 > 
-> # Predict(new_data, 1) produces classification result  
-> # Predict(new_data) produces regression result  
+> <li># Predict(new_data, 1) produces classification result</li>  
+> <li># Predict(new_data) produces regression result</li>  
 > result = model.Predict(new_data, 1)  
 > 
 > from sklearn.metrics import roc_auc_score  
