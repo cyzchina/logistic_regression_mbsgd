@@ -25,14 +25,14 @@ the first column is label without header and index
 > source ve_python3.6/bin/activate  
 > python setup.py build  
 > deactivate  
-> ln -s build/brb.brnux-x86_64-3.6/mbsgd.cpython-36m-x86_64-brnux-gnu.so mbsgd.so  
+> ln -s build/lib.linux-x86_64-3.6/mbsgd.cpython-36m-x86_64-linux-gnu.so mbsgd.so  
 
 ## python3.6 install:  
 > cd python  
 > source ve_python3.6/bin/activate  
 > python setup.py bdist_wheel  
 > deactivate  
-> pip3.6 install dist/mbsgd-2.0-cp36-cp36m-brnux_x86_64.whl  
+> pip3.6 install dist/mbsgd-2.0-cp36-cp36m-linux_x86_64.whl  
 
 ## python3.6 example:  
 > import pandas as pd  
@@ -44,14 +44,14 @@ the first column is label without header and index
 > new_data = test_data.iloc[:, 1:]  
 > test_labels = test_data.iloc[:, 0]  
 > 
-> <br># params train_data, [maxit], [eps], [cpus], [alpha], [l1], [gama]</br>  
+> <li># params train_data, [maxit], [eps], [cpus], [alpha], [l1], [gama]</li>  
 > trainer = MBSGD(train_data, cpus=4)  
-> <br># params  [maxit], [eps], [cpus], [alpha], [l1], [gama]</br>  
+> <li># params  [maxit], [eps], [cpus], [alpha], [l1], [gama]</li>  
 > model = trainer.Train(maxit=4)  
 > print(model.cost_sec)  
 > 
-> <br># Predict(new_data, 1) produces classification result</br>  
-> <br># Predict(new_data) produces regression result</br>  
+> <li># Predict(new_data, 1) produces classification result</li>  
+> <li># Predict(new_data) produces regression result</li>  
 > result = model.Predict(new_data, 1)  
 > 
 > from sklearn.metrics import roc_auc_score  
