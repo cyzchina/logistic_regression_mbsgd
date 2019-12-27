@@ -39,6 +39,10 @@ typedef struct {
   uint32_t *index;
   double *weights;
   double *total_l1;
+  double *old_pd;
+  double *v;
+  double *z;
+  double **batch_data;
   const TRAIN_ARG *parg_train;
 } TASK_ARG;
 

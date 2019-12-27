@@ -97,6 +97,10 @@ train(const TRAIN_ARG *parg) {
     task_args[i].index = index;
     task_args[i].weights = (double*)calloc(parg->feature_size, sizeof(double));
     task_args[i].total_l1 = (double*)calloc(parg->feature_size, sizeof(double));
+    task_args[i].old_pd = (double*)calloc(parg->feature_size, sizeof(double));
+    task_args[i].v = (double*)calloc(parg->feature_size, sizeof(double));
+    task_args[i].z = (double*)calloc(orig_batch, sizeof(double));
+    task_args[i].batch_data = (double**)calloc(orig_batch, sizeof(double*));
   }
 
   while (norm > parg->eps) {
@@ -218,6 +222,10 @@ train(const TRAIN_ARG *parg) {
   for (i = 0; i < pthread_count; ++i) {
     free(task_args[i].weights);
     free(task_args[i].total_l1);
+    free(task_args[i].old_pd);
+    free(task_args[i].v);
+    free(task_args[i].z);
+    free(task_args[i].batch_data);
     pthread_attr_destroy(&attrs[i]); 
   }
 
