@@ -10,7 +10,7 @@ task(void *param) {
 
   double predicted, a, b, pd;
 
-  double **batch_data = (double**)calloc(parg->task_batch, sizeof(double*));
+  //double **batch_data = (double**)calloc(parg->task_batch, sizeof(double*));
   double *z = (double*)calloc(parg->task_batch, sizeof(double));
   double *old_pd = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
   double *v = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
@@ -22,11 +22,11 @@ task(void *param) {
 
     for (j = 0; j < cur_batch; ++j) {
 #ifdef _PYTHON_MBSGD
-      batch_data[j] = &parg->parg_train->data[parg->index[i + j]];
-      predicted = classify(batch_data[j], parg->parg_train->data_size, parg->weights, parg->parg_train->feature_size);
+      parg->batch_data[j] = &parg->parg_train->data[parg->index[i + j]];
+      predicted = classify(parg->batch_data[j], parg->parg_train->data_size, parg->weights, parg->parg_train->feature_size);
 #else
-      batch_data[j] = parg->parg_train->data[parg->index[i + j]];
-      predicted = classify(batch_data[j], parg->weights, parg->parg_train->feature_size);
+      parg->batch_data[j] = parg->parg_train->data[parg->index[i + j]];
+      predicted = classify(parg->batch_data[j], parg->weights, parg->parg_train->feature_size);
 #endif
       z[j] = predicted - parg->parg_train->labels[parg->index[i + j]];
     }
@@ -35,9 +35,9 @@ task(void *param) {
       pd = 0;
       for (k = 0; k < cur_batch; ++k) {
 #ifdef _PYTHON_MBSGD
-        pd += z[k] * batch_data[k][j * parg->parg_train->data_size];
+        pd += z[k] * parg->batch_data[k][j * parg->parg_train->data_size];
 #else
-        pd += z[k] * batch_data[k][j];
+        pd += z[k] * parg->batch_data[k][j];
 #endif
       }
       pd /= cur_batch;
@@ -63,7 +63,7 @@ task(void *param) {
   free(v);
   free(old_pd);
   free(z);
-  free(batch_data);
+  //free(batch_data);
 
   return NULL;
 }
