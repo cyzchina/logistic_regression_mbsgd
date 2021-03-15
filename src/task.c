@@ -15,7 +15,7 @@ task(void *param) {
   //double *old_pd = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
   //double *v = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
 
-  memset(parg->old_pd, 0, sizeof(double) * parg->task_batch);
+  memset(parg->old_pd, 0, sizeof(double) * parg->parg_train->feature_size);
 
   i = parg->start;
   while (i < parg->end) {
