@@ -163,7 +163,7 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
   }
 
   printf("\n# classifying\n");
-  double tp = 0.0, fp = 0.0, tn = 0.0, fn = 0.0;
+  double tp = 0, fp = 0, tn = 0, fn = 0;
 
   size_t t_idx = -1, f_idx = test_data_size;
   double *ary_predicted = calloc(test_data_size, sizeof(double));
@@ -171,25 +171,23 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
 
   for (i = 0; i < test_data_size; ++i) {
     predicted = classify(test_data[i], weights, test_feature_size);
-    if ((0 == test_labels[i] && predicted < 0.5) || (1.0 == test_labels[i] && predicted >= 0.5)) {
+    if (predicted >= 0.5) {
       if (1.0 == test_labels[i]) {
         ++tp;
         ary_predicted[++t_idx] = predicted;
       }
-      else {
-        ++tn;
-        ary_predicted[--f_idx] = predicted;
-      }    
-    }
-    else{
-      if (1 == test_labels[i]) {
-        ++fn;
-        ary_predicted[++t_idx] = predicted;
-      }
-      else {
+      else{
         ++fp;
         ary_predicted[--f_idx] = predicted;
-      }    
+      }
+    }
+    else if (1.0 == test_labels[i]) {
+      ++fn;
+      ary_predicted[++t_idx] = predicted;
+    }
+    else {
+      ++tn;
+      ary_predicted[--f_idx] = predicted;
     }
   }
 
@@ -214,15 +212,16 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
   }
   free(test_data);
 
-  printf ("# accuracy:    %1.4f (%i/%i)\n", ((tp + tn) / (tp + tn + fp + fn)), (int)(tp + tn), (int)(tp + tn + fp + fn));
-  printf ("# precision:   %1.4f\n", tp / (tp + fp));
-  printf ("# recall:      %1.4f\n", tp / (tp + fn));
-  printf ("# mcc:         %1.4f\n", ((tp * tn) - (fp * fn)) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)));
-  printf ("# tp:          %i\n", (int)tp);
-  printf ("# tn:          %i\n", (int)tn);
-  printf ("# fp:          %i\n", (int)fp);    
-  printf ("# fn:          %i\n", (int)fn);
-  printf ("# auc:         %1.4f\n", auc_numerator / (double)((tp + fn) * (tn + fp)));
+  printf("# accuracy:    %1.4f (%i/%i)\n", (tp + tn) / (tp + tn + fp + fn), (int)(tp + tn), (int)(tp + tn + fp + fn));
+  printf("# precision:   %1.4f\n", tp / (tp + fp));
+  printf("# recall:      %1.4f\n", tp / (tp + fn));
+  printf("# f-score:     %1.4f\n", 2 * tp / (tp + fp + tp + fn));
+  printf("# mcc:         %1.4f\n", ((tp * tn) - (fp * fn)) / sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)));
+  printf("# tp:          %i\n", (int)tp);
+  printf("# tn:          %i\n", (int)tn);
+  printf("# fp:          %i\n", (int)fp);    
+  printf("# fn:          %i\n", (int)fn);
+  printf("# auc:         %1.4f\n", auc_numerator / ((tp + fn) * (tn + fp)));
 
   for (i = 0; i < feature_size; ++i) {
     printf("%f ", weights[i]);
@@ -374,7 +373,6 @@ main (int argc, char* const argv[]) {
   free(data);
 
   model_evaluation_index(test_file, feature_size, sprint_weights);
-
 
   free(sprint_weights);
   return 0;
