@@ -10,12 +10,23 @@ void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
 
-  //for (i = 0; i < parg->data_size; ++i) {
-  //  for (j = 0; j < parg->feature_size; ++j) {
-  //    printf("%1.4f ", parg->data[i + j * parg->data_size]);
-  //  }
-  //  printf("\n");
-  //}
+//  printf("*************** 1\n");
+//#ifdef _PYTHON_MBSGD
+//  for (i = 0; i < 4; ++i) {
+//    for (j = 0; j < parg->feature_size; ++j) {
+//      printf("%.17g ", parg->data[i + j * parg->data_size]);
+//    }
+//    printf("\n");
+//  }
+//#else
+//  for (i = 0; i < 4; ++i) {
+//    for (j = 0; j < parg->feature_size; ++j) {
+//      printf("%.17g ", parg->data[i][j]);
+//    }
+//    printf("\n");
+//  }
+//#endif
+//  printf("*************** 2\n");
 
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
 

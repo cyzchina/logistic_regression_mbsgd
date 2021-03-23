@@ -9,6 +9,7 @@ typedef struct {
   double cost_sec;
   size_t feature_size;
   double *sprint_weights;
+  PyObject *weights;
 } MBSGD_MODEL;
 
 static int 
@@ -16,6 +17,7 @@ MBSGD_MODEL_Init(MBSGD_MODEL *self, PyObject *args) {
   self->cost_sec = 0;
   self->feature_size = 0;
   self->sprint_weights = NULL;
+  self->weights = NULL;
 
   PyErr_SetString(PyExc_Exception, "MBSGD_MODEL cannot be instantiated");
   return -1;
@@ -23,21 +25,22 @@ MBSGD_MODEL_Init(MBSGD_MODEL *self, PyObject *args) {
 
 static void
 MBSGD_MODEL_Destruct(MBSGD_MODEL *self) {
-  if (self->cost_sec > 0) {
+  if (NULL != self->sprint_weights) {
     free(self->sprint_weights);
   }
-	Py_TYPE(self)->tp_free((PyObject*)self);
+  Py_XDECREF(self->weights);
+  Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 static PyObject*
 MBSGD_MODEL_Str(MBSGD_MODEL *Self) {
   static char object_name[] = "mbsgd model";
-	return Py_BuildValue("s", object_name);
+  return Py_BuildValue("s", object_name);
 }
 
 static PyObject*
 MBSGD_MODEL_Repr(MBSGD_MODEL *Self) {
-	return MBSGD_MODEL_Str(Self);
+  return MBSGD_MODEL_Str(Self);
 }
 
 static PyObject*
@@ -57,14 +60,14 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
 
   PyObject *new_shape = PyObject_GetAttrString(new_data, "shape");
   if (2 != PyTuple_GET_SIZE(new_shape)) {
-	  Py_XDECREF(new_shape);
+    Py_XDECREF(new_shape);
     PyErr_SetString(PyExc_ValueError, "new data is not two-dimenstions");
     return NULL;
   }
 
   size_t new_size = PyLong_AsUnsignedLong(PyTuple_GET_ITEM(new_shape, 0));
   size_t feature_size = PyLong_AsUnsignedLong(PyTuple_GET_ITEM(new_shape, 1));
-	Py_XDECREF(new_shape);
+  Py_XDECREF(new_shape);
 
   if (feature_size != self->feature_size) {
     PyErr_SetString(PyExc_ValueError, "new data has wrong feature size");
@@ -82,8 +85,8 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
     data = (double*)PyArray_DATA((PyArrayObject*)array);
   }
 
-  double predicted;
   size_t i;
+  double predicted;
   PyObject *predictions = PyTuple_New(new_size);
   if (0 == type) { 
     for (i = 0; i < new_size; ++i) {
@@ -98,13 +101,14 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
     }
   }
 
-	Py_XDECREF(array);
+  Py_XDECREF(array);
   return predictions;
 }
 
 static PyMemberDef MBSGD_MODEL_DataMembers[] = {
-  {"cost_sec", T_DOUBLE, offsetof(MBSGD_MODEL, cost_sec), READONLY, "cost sec of training" },
-	{NULL, 0, 0, 0, NULL}
+  {"cost_sec", T_DOUBLE, offsetof(MBSGD_MODEL, cost_sec), READONLY, "cost sec of training"},
+  {"weights", T_OBJECT, offsetof(MBSGD_MODEL, weights), READONLY, "weights"},
+  {NULL, 0, 0, 0, NULL}
 };
 
 static PyMethodDef MBSGD_MODEL_MethodMembers[] = {
@@ -127,4 +131,3 @@ static PyTypeObject MBSGD_MODEL_ClassInfo = {
   .tp_init      = (initproc)MBSGD_MODEL_Init,
   .tp_new       = PyType_GenericNew,
 };
-

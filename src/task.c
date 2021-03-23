@@ -10,11 +10,6 @@ task(void *param) {
 
   double predicted, a, b, pd;
 
-  //double **batch_data = (double**)calloc(parg->task_batch, sizeof(double*));
-  //double *z = (double*)calloc(parg->task_batch, sizeof(double));
-  //double *old_pd = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
-  //double *v = (double*)calloc(parg->parg_train->feature_size, sizeof(double));
-
   memset(parg->old_pd, 0, sizeof(double) * parg->parg_train->feature_size);
 
   i = parg->start;
@@ -56,17 +51,12 @@ task(void *param) {
             b = a + (parg->mu - parg->total_l1[j]);
             parg->weights[j] = b < 0.0 ? b:0.0;
         }
-        parg->total_l1[j] += (double)(parg->weights[j] - a);
+        //parg->total_l1[j] += (double)(parg->weights[j] - a);
+        parg->total_l1[j] += parg->weights[j] - a;
       }    
     }
-    i += parg->task_batch;
-  }
-
-  //free(v);
-  //free(old_pd);
-  //free(z);
-  //free(batch_data);
-
+    i += cur_batch;
+  } 
   return NULL;
 }
 
