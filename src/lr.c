@@ -3,9 +3,8 @@
 double
 vecnorm(double *w1, double *w2, size_t size) {
   double sum = 0.0;
-  double minus;
   for (size_t i = 0; i < size; ++i) {
-    minus = fabs(w1[i] - w2[i]);
+    double minus = fabs(w1[i] - w2[i]);
     sum += minus * minus;
   }
   return sqrt(sum);

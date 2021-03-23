@@ -10,12 +10,23 @@ void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
 
-  //for (i = 0; i < parg->data_size; ++i) {
-  //  for (j = 0; j < parg->feature_size; ++j) {
-  //    printf("%1.4f ", parg->data[i + j * parg->data_size]);
-  //  }
-  //  printf("\n");
-  //}
+//  printf("*************** 1\n");
+//#ifdef _PYTHON_MBSGD
+//  for (i = 0; i < 4; ++i) {
+//    for (j = 0; j < parg->feature_size; ++j) {
+//      printf("%.17g ", parg->data[i + j * parg->data_size]);
+//    }
+//    printf("\n");
+//  }
+//#else
+//  for (i = 0; i < 4; ++i) {
+//    for (j = 0; j < parg->feature_size; ++j) {
+//      printf("%.17g ", parg->data[i][j]);
+//    }
+//    printf("\n");
+//  }
+//#endif
+//  printf("*************** 2\n");
 
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
 
@@ -37,9 +48,9 @@ train(const TRAIN_ARG *parg) {
   double norm = 1.0;
   double min_norm;
   double old_norm = 1.0;
-#ifndef _PYTHON_MBSGD
+//#ifndef _PYTHON_MBSGD
   double l1n = 0;
-#endif
+//#endif
   double mu = 0;
   //double gama = 0.9;
   double y1 = pow(59, -1.0 / parg->data_size); 
@@ -174,12 +185,12 @@ train(const TRAIN_ARG *parg) {
 
     norm = vecnorm(weights, old_weights, parg->feature_size);
 
-#ifndef _PYTHON_MBSGD
+//#ifndef _PYTHON_MBSGD
     if (n && n % 100 == 0) {       
       l1n = l1norm(weights, parg->feature_size);
       printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
     }
-#endif
+//#endif
 
     ++n;
     if (sprint) {
@@ -210,10 +221,10 @@ train(const TRAIN_ARG *parg) {
     }               
   }
 
-#ifndef _PYTHON_MBSGD
+//#ifndef _PYTHON_MBSGD
   l1n = l1norm(weights, parg->feature_size);
   printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
-#endif
+//#endif
 
   if (!sprint) {
     memcpy(parg->sprint_weights, weights, weights_size);

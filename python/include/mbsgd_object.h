@@ -11,8 +11,8 @@
 typedef struct {
   PyObject_HEAD
   short cpus;
-  short maxit; 
   DATA_TYPE train_data_type;
+  unsigned int maxit; 
   double alpha;
   double gama;
   double l1;
@@ -58,14 +58,14 @@ MBSGD_Init(MBSGD *self, PyObject *args, PyObject *kwargs) {
 
   PyObject *train_shape = PyObject_GetAttrString(train_data, "shape");
   if (2 != PyTuple_GET_SIZE(train_shape)) {
-	  Py_XDECREF(train_shape);
+    Py_XDECREF(train_shape);
     PyErr_SetString(PyExc_ValueError, "train data is not two-dimenstions");
     return -1;
   }
 
   self->train_size = PyLong_AsUnsignedLong(PyTuple_GET_ITEM(train_shape, 0));
   self->feature_size = PyLong_AsUnsignedLong(PyTuple_GET_ITEM(train_shape, 1)) - 1;
-	Py_XDECREF(train_shape);
+  Py_XDECREF(train_shape);
 
   if (DATAFRAME == self->train_data_type) {
     self->array = PyObject_CallMethod(train_data, "__array__", NULL);
@@ -83,24 +83,53 @@ MBSGD_Init(MBSGD *self, PyObject *args, PyObject *kwargs) {
     self->cpus = nprocs;
   }
 
+  //PyObject *test = PyObject_GetAttrString(train_data, "values"); 
+  ////PyArrayObject *test2 = (PyArrayObject*)PyArray_ContiguousFromObject(test, NPY_DOUBLE, 2, 2);
+  ////double *array = (double*)PyArray_DATA(test2);
+  ////for (size_t i = 0; i < 10; ++i) {
+  ////    printf("%lf ", array[i]);
+  ////}
+  ////printf("\n");
+  ////Py_XDECREF(test2);
+  //PyObject *test2 = PyObject_GetAttrString(test, "data"); 
+  //PyObject *test3 = PyObject_CallMethod(test2, "tolist", NULL);
+
+  ////for (size_t i = 0; i < 10; ++i) {
+  ////  printf("%f ", PyFloat_AsDouble(PyList_GetItem(test3, (Py_ssize_t)i)));
+  ////}
+  ////printf("\n");
+
+  //PyObject *test4 = PyList_GetItem(test3, (Py_ssize_t)0);
+  //PyObject *test5 = PyList_GetItem(test4, (Py_ssize_t)1);
+  //const char *data_type_name = Py_TYPE(test5)->tp_name;
+  //printf("%s\n", data_type_name);
+  //printf("%.17g\n", PyFloat_AsDouble(test5));
+
+  //
+  //Py_XDECREF(test5);
+  //Py_XDECREF(test4);
+  //Py_XDECREF(test3);
+  //Py_XDECREF(test2);
+  //Py_XDECREF(test);
+
   return 0;
 }
 
 static void
 MBSGD_Destruct(MBSGD *self) {
-	Py_XDECREF(self->array);
-	Py_TYPE(self)->tp_free((PyObject*)self);
+  Py_XDECREF(self->array);
+  Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 static PyObject*
 MBSGD_Str(MBSGD *Self) {
   static char object_name[] = "mbsgd";
-	return Py_BuildValue("s", object_name);
+  return Py_BuildValue("s", object_name);
 }
 
 static PyObject*
 MBSGD_Repr(MBSGD *Self) {
-	return MBSGD_Str(Self);
+  return MBSGD_Str(Self);
 }
 
 static PyObject*
@@ -149,11 +178,18 @@ MBSGD_Train(MBSGD *self, PyObject *args, PyObject *kwargs) {
   mbsgd_model->sprint_weights = sprint_weights;
   mbsgd_model->feature_size = self->feature_size;
   mbsgd_model->cost_sec = (double)cost_sec + (double)cost_us / 1000000;
+
+  size_t i;
+  mbsgd_model->weights = PyList_New(self->feature_size);
+  for (i = 0; i < self->feature_size; ++i) {
+    PyList_SET_ITEM(mbsgd_model->weights, i, PyFloat_FromDouble(sprint_weights[i]));
+  }
+
   return (PyObject*)mbsgd_model;
 }
 
 static PyMemberDef MBSGD_DataMembers[] = {
-	{NULL, 0, 0, 0, NULL}
+  {NULL, 0, 0, 0, NULL}
 };
 
 static PyMethodDef MBSGD_MethodMembers[] = {
