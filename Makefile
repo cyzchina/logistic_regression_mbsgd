@@ -33,4 +33,4 @@ endif
  
 .PHONY: clean
 clean:
-	-rm -f $(CXX_OBJECTS) $(DEP_FILES) $(EXE) $(EXE).b64
+	-rm -f $(CXX_OBJECTS) $(DEP_FILES) $(EXE)
