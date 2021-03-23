@@ -121,7 +121,6 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
       return NULL;
     }
     data = (double*)PyArray_DATA((PyArrayObject*)array);
-    Py_XDECREF(array);
   }
 
   size_t i;
@@ -139,6 +138,7 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
       PyTuple_SET_ITEM(predictions, i, PyFloat_FromDouble(predicted > 0.5? 1.0:0.0));
     }
   }
+  Py_XDECREF(array);
   return predictions;
 }
 
