@@ -100,7 +100,6 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
       PyTuple_SET_ITEM(predictions, i, PyFloat_FromDouble(predicted > 0.5? 1.0:0.0));
     }
   }
-
   Py_XDECREF(array);
   return predictions;
 }
