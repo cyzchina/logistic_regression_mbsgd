@@ -74,33 +74,45 @@ MBSGD_MODEL_Predict(MBSGD_MODEL *self, PyObject *args) {
     return NULL;
   }
 
-  double *data = NULL;
-  PyObject *array = NULL;
+  size_t i;
+  double **data = NULL;
   if (DATAFRAME == new_data_type) {
-    array = PyObject_CallMethod(new_data, "__array__", NULL);
+    PyObject *array = PyObject_CallMethod(new_data, "__array__", NULL);
     if (NULL == array) {
       PyErr_SetString(PyExc_ValueError, "no array");
       return NULL;
     }
-    data = (double*)PyArray_DATA((PyArrayObject*)array);
+
+    double *raw_data = (double*)PyArray_DATA((PyArrayObject*)array);
+    data = (double**)calloc(new_size, sizeof(double*));
+    for (i = 0; i < new_size; ++i) {
+      data[i] = (double*)calloc(feature_size, sizeof(double));
+      size_t j;
+      for (j = 0; j < feature_size; ++j) {
+        data[i][j] = raw_data[i + j * new_size];
+      }
+    } 
+
+    Py_XDECREF(array);
   }
 
-  size_t i;
   double predicted;
   PyObject *predictions = PyTuple_New(new_size);
   if (0 == type) { 
     for (i = 0; i < new_size; ++i) {
-      predicted = classify(&data[i], new_size, self->sprint_weights, feature_size);
+      predicted = classify(data[i], self->sprint_weights, feature_size);
+      free(data[i]);
       PyTuple_SET_ITEM(predictions, i, PyFloat_FromDouble(predicted));
     }
   }
   else {
     for (i = 0; i < new_size; ++i) {
-      predicted = classify(&data[i], new_size, self->sprint_weights, feature_size);
+      predicted = classify(data[i], self->sprint_weights, feature_size);
+      free(data[i]);
       PyTuple_SET_ITEM(predictions, i, PyFloat_FromDouble(predicted > 0.5? 1.0:0.0));
     }
   }
-  Py_XDECREF(array);
+  free(data);
   return predictions;
 }
 
