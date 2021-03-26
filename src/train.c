@@ -6,27 +6,11 @@
 #include "task.h"
 #include "lr.h"
 
+static const size_t MIN_BATCH_SIZE = 200;
+
 void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
-
-//  printf("*************** 1\n");
-//#ifdef _PYTHON_MBSGD
-//  for (i = 0; i < 4; ++i) {
-//    for (j = 0; j < parg->feature_size; ++j) {
-//      printf("%.17g ", parg->data[i + j * parg->data_size]);
-//    }
-//    printf("\n");
-//  }
-//#else
-//  for (i = 0; i < 4; ++i) {
-//    for (j = 0; j < parg->feature_size; ++j) {
-//      printf("%.17g ", parg->data[i][j]);
-//    }
-//    printf("\n");
-//  }
-//#endif
-//  printf("*************** 2\n");
 
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
 
@@ -77,25 +61,32 @@ train(const TRAIN_ARG *parg) {
     index[i] = i;
   }
 
-  cpu_set_t mask;
-  pthread_t *threads = (pthread_t*)calloc(parg->cpus, sizeof(pthread_t));
-  pthread_attr_t *attrs = (pthread_attr_t*)calloc(parg->cpus, sizeof(pthread_attr_t));
-  TASK_ARG *task_args = (TASK_ARG*)calloc(parg->cpus, sizeof(TASK_ARG));
-  size_t pthread_batch_size = parg->data_size / parg->cpus;
-  size_t pthread_heavy = parg->data_size % parg->cpus;
-  size_t pthread_count = parg->cpus, pthread_idx = 0;
+  size_t pthread_batch_size, pthread_heavy, pthread_count;
+  size_t pthread_idx = 0;
+  if (parg->data_size < MIN_BATCH_SIZE) {
+    pthread_count = 1;
+    pthread_batch_size = parg->data_size;
+    pthread_heavy = 0;
+  }
+  else {
+    pthread_count = parg->data_size / MIN_BATCH_SIZE;
+    if (pthread_count >= parg->cpus) {
+      pthread_count = parg->cpus;
+    }
+    pthread_batch_size = parg->data_size / pthread_count;
+    pthread_heavy = parg->data_size % pthread_count;
+  }
 
-  for (i = 0; i < parg->cpus; ++i) {
+  cpu_set_t mask;
+  pthread_t *threads = (pthread_t*)calloc(pthread_count, sizeof(pthread_t));
+  pthread_attr_t *attrs = (pthread_attr_t*)calloc(pthread_count, sizeof(pthread_attr_t));
+  TASK_ARG *task_args = (TASK_ARG*)calloc(pthread_count, sizeof(TASK_ARG));
+
+  for (i = 0; i < pthread_count; ++i) {
     task_args[i].start = pthread_idx;
+    pthread_idx += pthread_batch_size;
     if (i < pthread_heavy) {
-      pthread_idx += pthread_batch_size + 1;
-    }
-    else if (pthread_batch_size > 0) {
-      pthread_idx += pthread_batch_size;
-    }
-    else {
-      pthread_count = i;
-      break;
+      pthread_idx += 1;
     }
     task_args[i].end = pthread_idx;
 
@@ -209,15 +200,6 @@ train(const TRAIN_ARG *parg) {
       memcpy(parg->sprint_weights, weights, weights_size);
 
       batch = 1;
-      //task_args[0].task_batch = 1;
-      //task_args[0].mu = mu;
-      //task_args[0].start = 0;
-      //task_args[0].end = parg->data_size;
-      //task_args[0].mu = 0;
-      //memcpy(task_args[0].weights, weights, weights_size);
-      //memcpy(task_args[0].total_l1, total_l1, weights_size);
-      //memset(task_args[0].total_l1, 0, weights_size);
-      //y2 = 1.0;
     }               
   }
 

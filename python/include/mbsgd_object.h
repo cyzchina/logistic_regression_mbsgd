@@ -14,14 +14,10 @@ typedef struct {
   DATA_TYPE train_data_type;
   unsigned int maxit; 
   double alpha;
-  double gama;
-  double l1;
-  double eps;
-  size_t train_size;
+  double gama; double l1; double eps; size_t train_size;
   size_t feature_size;
   double *labels;
-  double *data;
-  PyObject *array;
+  double **data;
 } MBSGD;
 
 static int 
@@ -32,7 +28,8 @@ MBSGD_Init(MBSGD *self, PyObject *args, PyObject *kwargs) {
   self->l1    = 0.0001;
   self->eps   = 0.005;
   self->gama  = 0.9;
-  self->array = NULL;
+  self->labels = NULL;
+  self->data = NULL;
 
   static char *kwlist[] = {"train_data", "maxit", "eps", "cpus", "alpha", "l1", "gama"};
 
@@ -68,14 +65,25 @@ MBSGD_Init(MBSGD *self, PyObject *args, PyObject *kwargs) {
   Py_XDECREF(train_shape);
 
   if (DATAFRAME == self->train_data_type) {
-    self->array = PyObject_CallMethod(train_data, "__array__", NULL);
-    if (NULL == self->array) {
+    PyObject *array = PyObject_CallMethod(train_data, "__array__", NULL);
+    if (NULL == array) {
       PyErr_SetString(PyExc_ValueError, "no array");
       return -1;
     }
-    double *raw_data = (double*)PyArray_DATA((PyArrayObject*)self->array);
-    self->labels = raw_data;
-    self->data = &raw_data[self->train_size];
+    double *raw_data = (double*)PyArray_DATA((PyArrayObject*)array);
+    self->labels = (double*)calloc(self->train_size, sizeof(double));
+    memcpy(self->labels, raw_data, sizeof(double) * self->train_size);
+    self->data = (double**)calloc(self->train_size, sizeof(double*));
+    size_t i;
+    double *data = &raw_data[self->train_size];
+    for (i = 0; i < self->train_size; ++i) {
+      self->data[i] = (double*)calloc(self->feature_size, sizeof(double));
+      size_t j;
+      for (j = 0; j < self->feature_size; ++j) {
+        self->data[i][j] = data[i + j * self->train_size];
+      }
+    }
+    Py_XDECREF(array);
   }
 
   int nprocs = get_nprocs();
@@ -83,41 +91,19 @@ MBSGD_Init(MBSGD *self, PyObject *args, PyObject *kwargs) {
     self->cpus = nprocs;
   }
 
-  //PyObject *test = PyObject_GetAttrString(train_data, "values"); 
-  ////PyArrayObject *test2 = (PyArrayObject*)PyArray_ContiguousFromObject(test, NPY_DOUBLE, 2, 2);
-  ////double *array = (double*)PyArray_DATA(test2);
-  ////for (size_t i = 0; i < 10; ++i) {
-  ////    printf("%lf ", array[i]);
-  ////}
-  ////printf("\n");
-  ////Py_XDECREF(test2);
-  //PyObject *test2 = PyObject_GetAttrString(test, "data"); 
-  //PyObject *test3 = PyObject_CallMethod(test2, "tolist", NULL);
-
-  ////for (size_t i = 0; i < 10; ++i) {
-  ////  printf("%f ", PyFloat_AsDouble(PyList_GetItem(test3, (Py_ssize_t)i)));
-  ////}
-  ////printf("\n");
-
-  //PyObject *test4 = PyList_GetItem(test3, (Py_ssize_t)0);
-  //PyObject *test5 = PyList_GetItem(test4, (Py_ssize_t)1);
-  //const char *data_type_name = Py_TYPE(test5)->tp_name;
-  //printf("%s\n", data_type_name);
-  //printf("%.17g\n", PyFloat_AsDouble(test5));
-
-  //
-  //Py_XDECREF(test5);
-  //Py_XDECREF(test4);
-  //Py_XDECREF(test3);
-  //Py_XDECREF(test2);
-  //Py_XDECREF(test);
-
   return 0;
 }
 
 static void
 MBSGD_Destruct(MBSGD *self) {
-  Py_XDECREF(self->array);
+  if (NULL != self->data) {
+    size_t i;
+    for (i = 0; i < self->train_size; ++i) {
+      free(self->data[i]);
+    }
+    free(self->data);
+    free(self->labels);
+  }
   Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
