@@ -33,18 +33,10 @@ sigmoid(double x) {
 }
 
 double
-#ifdef _PYTHON_MBSGD
-classify(double *features, size_t data_size, double *weights, size_t feature_size) {
-#else
 classify(double *features, double *weights, size_t feature_size) {
-#endif
   double logit = 0.0;
   for (size_t i = 0; i < feature_size; ++i) {
-#ifdef _PYTHON_MBSGD
-    logit += features[i * data_size] * weights[i];
-#else
     logit += features[i] * weights[i];
-#endif
   }
   return sigmoid(logit);
 }

@@ -19,11 +19,7 @@ typedef struct {
   double eps;
   int randw;
   double *labels;
-#ifdef _PYTHON_MBSGD
-  double *data;
-#else
   double **data;
-#endif
   size_t data_size;
   size_t feature_size;
   double *sprint_weights;

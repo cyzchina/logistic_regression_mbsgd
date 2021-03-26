@@ -18,24 +18,15 @@ task(void *param) {
     cur_batch = last_batch >= parg->task_batch? parg->task_batch:last_batch;
 
     for (j = 0; j < cur_batch; ++j) {
-#ifdef _PYTHON_MBSGD
-      parg->batch_data[j] = &parg->parg_train->data[parg->index[i + j]];
-      predicted = classify(parg->batch_data[j], parg->parg_train->data_size, parg->weights, parg->parg_train->feature_size);
-#else
       parg->batch_data[j] = parg->parg_train->data[parg->index[i + j]];
       predicted = classify(parg->batch_data[j], parg->weights, parg->parg_train->feature_size);
-#endif
       parg->z[j] = predicted - parg->parg_train->labels[parg->index[i + j]];
     }
     parg->mu += parg->y3;
     for (j = 0; j < parg->parg_train->feature_size; ++j) {
       pd = 0;
       for (k = 0; k < cur_batch; ++k) {
-#ifdef _PYTHON_MBSGD
-        pd += parg->z[k] * parg->batch_data[k][j * parg->parg_train->data_size];
-#else
         pd += parg->z[k] * parg->batch_data[k][j];
-#endif
       }
       pd /= cur_batch;
       parg->v[j] = pd + parg->parg_train->gama * (parg->v[j] + pd - parg->old_pd[j]);

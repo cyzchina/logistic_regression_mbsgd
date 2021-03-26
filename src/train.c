@@ -12,24 +12,6 @@ void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
 
-//  printf("*************** 1\n");
-//#ifdef _PYTHON_MBSGD
-//  for (i = 0; i < 4; ++i) {
-//    for (j = 0; j < parg->feature_size; ++j) {
-//      printf("%.17g ", parg->data[i + j * parg->data_size]);
-//    }
-//    printf("\n");
-//  }
-//#else
-//  for (i = 0; i < 4; ++i) {
-//    for (j = 0; j < parg->feature_size; ++j) {
-//      printf("%.17g ", parg->data[i][j]);
-//    }
-//    printf("\n");
-//  }
-//#endif
-//  printf("*************** 2\n");
-
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
 
   size_t weights_size = sizeof(double) * parg->feature_size;
@@ -218,15 +200,6 @@ train(const TRAIN_ARG *parg) {
       memcpy(parg->sprint_weights, weights, weights_size);
 
       batch = 1;
-      //task_args[0].task_batch = 1;
-      //task_args[0].mu = mu;
-      //task_args[0].start = 0;
-      //task_args[0].end = parg->data_size;
-      //task_args[0].mu = 0;
-      //memcpy(task_args[0].weights, weights, weights_size);
-      //memcpy(task_args[0].total_l1, total_l1, weights_size);
-      //memset(task_args[0].total_l1, 0, weights_size);
-      //y2 = 1.0;
     }               
   }
 
