@@ -11,14 +11,21 @@ CPPFLAGS += -I $(INCLUDEDIR)
 #链接选项
 LDFLAGS += -lm -lpthread
 #编译器的选项
-CFLAGS += -O3 -Wall -D_GNU_SOURCE
+CFLAGS += -O3 -Wall -D_GNU_SOURCE -D_CUDA
  
 #后面的内容都不需要修改
 CXX_SOURCES = $(foreach dir,$(SRCDIR), $(wildcard $(dir)/*.$(EXTENSION)))
 CXX_OBJECTS = $(patsubst  %.$(EXTENSION), $(OBJDIR)/%.o, $(notdir $(CXX_SOURCES)))
 DEP_FILES  = $(patsubst  %.$(EXTENSION), $(DEPDIR)/%.d, $(notdir $(CXX_SOURCES)))
  
-$(EXE): $(CXX_OBJECTS)
+#CUDA_EXTENSION = cu
+#NVCC = nvcc
+#CUDA_SRCDIR = cuda
+#CUDA_SOURCES = $(foreach dir,$(CUDA_SRCDIR), $(wildcard $(dir)/*.$(CUDA_EXTENSION)))
+#CUDA_OBJECTS = $(patsubst  %.$(CUDA_EXTENSION), $(OBJDIR)/%.o, $(notdir $(CUDA_SOURCES)))
+#CUDA_DEP_FILES  = $(patsubst  %.$(CUDA_EXTENSION), $(DEPDIR)/%.d, $(notdir $(CUDA_SOURCES)))
+
+$(EXE): $(CXX_OBJECTS) 
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CXX_OBJECTS) -o $(EXE)
  
 $(OBJDIR)/%.o: $(SRCDIR)/%.$(EXTENSION)

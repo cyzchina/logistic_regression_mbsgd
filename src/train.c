@@ -12,41 +12,68 @@ void
 train(const TRAIN_ARG *parg) {
   size_t i, j;
 
+  #ifdef _CUDA
+  float *weights = (float*)calloc(parg->feature_size, sizeof(float));
+  size_t weights_size = sizeof(float) * parg->feature_size;
+  #else
   double *weights = (double*)calloc(parg->feature_size, sizeof(double));
-
   size_t weights_size = sizeof(double) * parg->feature_size;
+  #endif
+
   uint32_t *randoms = (uint32_t*)calloc(parg->feature_size > parg->data_size? parg->feature_size:parg->data_size, sizeof(uint32_t));
   if (parg->randw) {
     create_randoms(randoms, parg->feature_size);
 
     for (i = 0; i < parg->feature_size; ++i) {
+      #ifdef _CUDA
+      weights[i] = -1.0 + 2.0 * ((float)randoms[i] / UINT32_MAX); 
+      #else
       weights[i] = -1.0 + 2.0 * ((double)randoms[i] / UINT32_MAX); 
+      #endif
     }
   }
 
-#ifndef _PYTHON_MBSGD
+  #ifndef _PYTHON_MBSGD
   printf("\n# stochastic gradient descent\n");
-#endif
+  #endif
 
   bool sprint = false;
+  size_t n = 0;
+  size_t sprint_maxit = parg->maxit + 30;
+
+  #ifdef _CUDA
+  float norm = 1.0;
+  float min_norm;
+  float old_norm = 1.0;
+  #ifndef _PYTHON_MBSGD
+  float l1n = 0;
+  #endif
+  float mu = 0;
+  float y1 = pow(59, -1.0 / parg->data_size); 
+  float y2 = 1.0;
+  float y3;
+  float yita;
+  float c, d;
+
+  float *old_weights = (float*)calloc(parg->feature_size, sizeof(float));
+  float *total_l1 = (float*)calloc(parg->feature_size, sizeof(float));
+  #else
   double norm = 1.0;
   double min_norm;
   double old_norm = 1.0;
-#ifndef _PYTHON_MBSGD
+  #ifndef _PYTHON_MBSGD
   double l1n = 0;
-#endif
+  #endif
   double mu = 0;
-  //double gama = 0.9;
   double y1 = pow(59, -1.0 / parg->data_size); 
   double y2 = 1.0;
   double y3;
   double yita;
   double c, d;
-  size_t n = 0;
-  size_t sprint_maxit = parg->maxit + 30;
 
   double *old_weights = (double*)calloc(parg->feature_size, sizeof(double));
   double *total_l1 = (double*)calloc(parg->feature_size, sizeof(double));
+  #endif
 
   uint32_t *index = (uint32_t*)calloc(parg->data_size, sizeof(uint32_t));
 
@@ -97,12 +124,21 @@ train(const TRAIN_ARG *parg) {
 
     task_args[i].parg_train = parg;
     task_args[i].index = index;
+    #ifdef _CUDA
+    task_args[i].weights = (float*)calloc(parg->feature_size, sizeof(float));
+    task_args[i].total_l1 = (float*)calloc(parg->feature_size, sizeof(float));
+    task_args[i].old_pd = (float*)calloc(parg->feature_size, sizeof(float));
+    task_args[i].v = (float*)calloc(parg->feature_size, sizeof(float));
+    task_args[i].z = (float*)calloc(orig_batch, sizeof(float));
+    task_args[i].batch_data = (float**)calloc(orig_batch, sizeof(float*));
+    #else
     task_args[i].weights = (double*)calloc(parg->feature_size, sizeof(double));
     task_args[i].total_l1 = (double*)calloc(parg->feature_size, sizeof(double));
     task_args[i].old_pd = (double*)calloc(parg->feature_size, sizeof(double));
     task_args[i].v = (double*)calloc(parg->feature_size, sizeof(double));
     task_args[i].z = (double*)calloc(orig_batch, sizeof(double));
     task_args[i].batch_data = (double**)calloc(orig_batch, sizeof(double*));
+    #endif
   }
 
   while (norm > parg->eps) {

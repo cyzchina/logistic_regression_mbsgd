@@ -26,7 +26,11 @@ usage(const char *prog) {
 }
 
 bool
+#ifdef _CUDA
+read_data(const char *data_file, float **pplabels, float ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
+#else
 read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
+#endif
   char buf[BUF_SIZE];
   
   //size_t read_size = readlink(data_file, buf, BUF_SIZE);
@@ -44,12 +48,17 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
   *pdata_size = 0;
 
   size_t feature_size = *pfeature_size? *pfeature_size:MAX_FEATURE_SIZE;
+#ifdef _CUDA
+  float *features = (float*)calloc(feature_size, sizeof(float));
+  float label = 0;
+#else
   double *features = (double*)calloc(feature_size, sizeof(double));
+  double label = 0;
+#endif
 
   unsigned int available_data_size = 0;
 
   bool overflow = false;
-  double label = 0;
   size_t col_idx = 0;
   size_t i, j = 0;
   size_t idx = 0;
@@ -81,7 +90,11 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 
         if (col_idx >= feature_size) {
           printf("overflow\n");
+          #ifdef _CUDA
+          memset(features, 0, sizeof(float) * feature_size);
+          #else
           memset(features, 0, sizeof(double) * feature_size);
+          #endif
           col_idx = 0;
           overflow = true;
           continue;
@@ -102,19 +115,32 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 
         if (available_data_size <= 0) {
           available_data_size = ACC_DATA_SIZE;
+          #ifdef _CUDA
+          *pppdata = (float**)realloc(*pppdata, sizeof(float*) * (*pdata_size + ACC_DATA_SIZE)); 
+          *pplabels = (float*)realloc(*pplabels, sizeof(float) * (*pdata_size + ACC_DATA_SIZE)); 
+          #else
           *pppdata = (double**)realloc(*pppdata, sizeof(double*) * (*pdata_size + ACC_DATA_SIZE)); 
           *pplabels = (double*)realloc(*pplabels, sizeof(double) * (*pdata_size + ACC_DATA_SIZE)); 
+          #endif
         }
         (*pplabels)[*pdata_size] = label;
 
         if (0 == *pfeature_size) {
           feature_size = *pfeature_size = col_idx;
+          #ifdef _CUDA
+          (*pppdata)[*pdata_size] = (float*)realloc(features, sizeof(float) * feature_size);
+          #else
           (*pppdata)[*pdata_size] = (double*)realloc(features, sizeof(double) * feature_size);
+          #endif
         }
         else {
           (*pppdata)[*pdata_size] = features;
         }
+        #ifdef _CUDA
+        features = (float*)calloc(feature_size, sizeof(float));
+        #else
         features = (double*)calloc(feature_size, sizeof(double));
+        #endif
 
         col_idx = 0;
         j = i + 1;
@@ -144,7 +170,11 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 } 
 
 void
+#ifdef _CUDA
+model_evaluation_index(const char *test_file, size_t feature_size, float *weights) {
+#else
 model_evaluation_index(const char *test_file, size_t feature_size, double *weights) {
+#endif
   size_t i, j;
   uint32_t sparsity = 0;
   for (i = 0; i < feature_size; ++i) {
@@ -152,10 +182,21 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
       ++sparsity;
     }
   }
-  printf("# sparsity:    %1.4f (%d/%lu)\n", (double)sparsity / feature_size, sparsity, feature_size);
 
+  #ifdef _CUDA
+  printf("# sparsity:    %1.4f (%d/%lu)\n", (float)sparsity / feature_size, sparsity, feature_size);
+  #else
+  printf("# sparsity:    %1.4f (%d/%lu)\n", (double)sparsity / feature_size, sparsity, feature_size);
+  #endif 
+
+  #ifdef _CUDA
+  float **test_data = NULL;
+  float *test_labels = NULL;
+  #else
   double **test_data = NULL;
   double *test_labels = NULL;
+  #endif
+
   size_t test_data_size = 0;
   size_t test_feature_size = feature_size;
   if (!read_data(test_file, &test_labels, &test_data, &test_data_size, &test_feature_size)) {
@@ -163,11 +204,18 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
   }
 
   printf("\n# classifying\n");
-  double tp = 0, fp = 0, tn = 0, fn = 0;
 
   size_t t_idx = -1, f_idx = test_data_size;
+
+  #ifdef _CUDA
+  float *ary_predicted = calloc(test_data_size, sizeof(float));
+  float predicted;
+  #else
   double *ary_predicted = calloc(test_data_size, sizeof(double));
   double predicted;
+  #endif
+
+  double tp = 0, fp = 0, tn = 0, fn = 0;
 
   for (i = 0; i < test_data_size; ++i) {
     predicted = classify(test_data[i], weights, test_feature_size);
@@ -231,20 +279,11 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
 
 int
 main (int argc, char* const argv[]) {
-  // Learning rate
-  double alpha = 0.001;
-
-  // L1 penalty weight
-  double l1 = 0.0001;
-
   // Max iterations
   unsigned int maxit = 500;
 
   // Shuffle data set
   int shuf = 1;
-
-  // Convergence threshold
-  double eps = 0.005;
 
   // Verbose
   //int verbose = 0;
@@ -253,6 +292,19 @@ main (int argc, char* const argv[]) {
   int randw = 0;
 
   int cpus = 4;
+
+  #ifdef _CUDA
+  float alpha = 0.001;
+  float l1 = 0.0001;
+  float eps = 0.005;
+  #else
+  // Learning rate
+  double alpha = 0.001;
+  // L1 penalty weight
+  double l1 = 0.0001;
+  // Convergence threshold
+  double eps = 0.005;
+  #endif
 
   // Read model file
   //const char *model_in = NULL;
@@ -322,8 +374,16 @@ main (int argc, char* const argv[]) {
     cpus = nprocs;
   }
 
+#ifdef _CUDA
+  float **data = NULL;
+  float *labels = NULL;
+  float gama = 0.9;
+#else
   double **data = NULL;
   double *labels = NULL;
+  double gama = 0.9;
+#endif
+
   size_t data_size = 0;
   size_t feature_size = 0;
   if (!read_data(train_file, &labels, &data, &data_size, &feature_size)) {
@@ -334,8 +394,11 @@ main (int argc, char* const argv[]) {
   printf("# feature_size: %lu\n", feature_size);
   printf("# cpus:         %d\n", cpus);
 
-  double gama = 0.9;
+  #ifdef _CUDA
+  float *sprint_weights = (float*)calloc(feature_size, sizeof(float));
+  #else
   double *sprint_weights = (double*)calloc(feature_size, sizeof(double));
+  #endif
 
   TRAIN_ARG arg;
   arg.cpus = cpus;
