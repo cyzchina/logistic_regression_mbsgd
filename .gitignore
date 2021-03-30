@@ -1,5 +1,6 @@
 lr_mbsgd
-*.b64
+lrgpu_mbsgd
+libculrmbsgd.a
 *.so
 test*
 *.csv

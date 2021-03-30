@@ -1,7 +1,7 @@
 #include "base.h"
 
 float
-vecnorm(float *w1, float *w2, size_t size) {
+gpu_vecnorm(float *w1, float *w2, size_t size) {
   float sum = 0.0;
   for (size_t i = 0; i < size; ++i) {
     float minus = fabs(w1[i] - w2[i]);
@@ -11,7 +11,7 @@ vecnorm(float *w1, float *w2, size_t size) {
 }
 
 float
-l1norm(float *weights, size_t size) {
+gpu_l1norm(float *weights, size_t size) {
   float sum = 0.0;
   for (size_t i = 0; i < size; ++i) {
     sum += fabs(weights[i]);
@@ -20,7 +20,7 @@ l1norm(float *weights, size_t size) {
 }
 
 float
-sigmoid(float x) {
+gpu_sigmoid(float x) {
   static float overflow = 20.0;
   if (x > overflow) x = overflow;
   if (x < -overflow) x = -overflow;
@@ -33,10 +33,10 @@ sigmoid(float x) {
 }
 
 float
-classify(float *features, float *weights, size_t feature_size) {
+gpu_classify(float *features, float *weights, size_t feature_size) {
   float logit = 0.0;
   for (size_t i = 0; i < feature_size; ++i) {
     logit += features[i] * weights[i];
   }
-  return sigmoid(logit);
+  return gpu_sigmoid(logit);
 }

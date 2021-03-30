@@ -1,8 +1,8 @@
 #include "base.h"
-#include "lr.h"
+#include "culr.h"
 
 void*
-task(void *param) {
+gpu_task(void *param) {
   TASK_ARG *parg = (TASK_ARG*)param;
 
   uint32_t last_batch, cur_batch;
@@ -19,7 +19,7 @@ task(void *param) {
 
     for (j = 0; j < cur_batch; ++j) {
       parg->batch_data[j] = parg->parg_train->data[parg->index[i + j]];
-      predicted = classify(parg->batch_data[j], parg->weights, parg->parg_train->feature_size);
+      predicted = gpu_classify(parg->batch_data[j], parg->weights, parg->parg_train->feature_size);
       parg->z[j] = predicted - parg->parg_train->labels[parg->index[i + j]];
     }
 
@@ -51,4 +51,3 @@ task(void *param) {
   } 
   return NULL;
 }
-
