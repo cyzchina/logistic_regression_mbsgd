@@ -10,7 +10,6 @@
 #endif
 
 #include "lr.h"
-#include "culr.h"
 
 static const size_t BUF_SIZE = 4096;
 static const size_t ACC_DATA_SIZE = 1000;
@@ -29,7 +28,9 @@ usage(const char *prog) {
   printf("-l <float> L1 regularization weight. default 0.1\n"); 
   printf("-t <file>  Test file to classify\n");     
   printf("-r <float> Randomise weights between -1 and 1, otherwise 0\n");    
+  #ifndef _CUDA
   printf("-c <int>   cpu cores. default 4\n");    
+  #endif
 }
 
 bool
@@ -254,7 +255,9 @@ main (int argc, char* const argv[]) {
   // Randomise weights
   int randw = 0;
 
+  #ifndef _CUDA
   int cpus = 4;
+  #endif
 
   // Learning rate
   float alpha = 0.001;
@@ -293,7 +296,11 @@ main (int argc, char* const argv[]) {
     return -1;
   }
 
+  #ifdef _CUDA
+  while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:"))) {
+  #else
   while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:c:"))) {
+  #endif
     switch(ch) {
       case 's':
         shuf = atoi(optarg);
@@ -317,19 +324,23 @@ main (int argc, char* const argv[]) {
       case 'r':
         randw = 1;
         break;
+      #ifndef _CUDA
       case 'c':
         cpus = atoi(optarg);
         break;
+      #endif
       default:
         usage(argv[0]);
         return -1;
     }
   }
 
+  #ifndef _CUDA
   int nprocs = get_nprocs();
   if (nprocs < cpus) {
     cpus = nprocs;
   }
+  #endif
 
   float **data = NULL;
   float *labels = NULL;
@@ -343,12 +354,16 @@ main (int argc, char* const argv[]) {
 
   printf("# data_size:    %lu\n", data_size);
   printf("# feature_size: %lu\n", feature_size);
+  #ifndef _CUDA
   printf("# cpus:         %d\n", cpus);
+  #endif
 
   float *sprint_weights = (float*)calloc(feature_size, sizeof(float));
 
   TRAIN_ARG arg;
+  #ifndef _CUDA
   arg.cpus = cpus;
+  #endif
   arg.alpha = alpha;
   arg.gama = gama;
   arg.l1 = l1;

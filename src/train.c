@@ -15,12 +15,15 @@ train(const TRAIN_ARG *parg) {
   float *weights = (float*)calloc(parg->feature_size, sizeof(float));
   size_t weights_size = sizeof(float) * parg->feature_size;
 
-  uint32_t *randoms = (uint32_t*)calloc(parg->feature_size > parg->data_size? parg->feature_size:parg->data_size, sizeof(uint32_t));
-  if (parg->randw) {
+  uint32_t *randoms =  NULL;
+  if (parg->randw || parg->shuf) {
+    randoms = (uint32_t*)calloc(parg->feature_size > parg->data_size ? parg->feature_size:parg->data_size, sizeof(uint32_t));
     create_randoms(randoms, parg->feature_size);
 
-    for (i = 0; i < parg->feature_size; ++i) {
-      weights[i] = -1.0 + 2.0 * ((float)randoms[i] / UINT32_MAX); 
+    if (parg->randw) {
+      for (i = 0; i < parg->feature_size; ++i) {
+        weights[i] = -1.0 + 2.0 * ((float)randoms[i] / UINT32_MAX); 
+      }
     }
   }
 
@@ -164,24 +167,14 @@ train(const TRAIN_ARG *parg) {
       }
     }
 
-    //for (i = 0; i < parg->feature_size; ++i) {
-    //  printf("%f ", weights[i]);
-    //}
-    //printf("\n");
-
-    //for (i = 0; i < parg->feature_size; ++i) {
-    //  printf("%f ", old_weights[i]);
-    //}
-    //printf("\n");
-
     norm = vecnorm(weights, old_weights, parg->feature_size);
 
-#ifndef _PYTHON_MBSGD
+    #ifndef _PYTHON_MBSGD
     if (n && n % 100 == 0) {       
       l1n = l1norm(weights, parg->feature_size);
       printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
     }
-#endif
+    #endif
 
     ++n;
     if (sprint) {

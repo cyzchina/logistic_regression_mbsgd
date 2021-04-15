@@ -1,4 +1,6 @@
 #pragma once
 
-void *gpu_task(void *param);
+extern "C" {
+float gpu_task(TASK_ARG *parg);
+}
 

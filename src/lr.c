@@ -4,7 +4,8 @@ float
 vecnorm(float *w1, float *w2, size_t size) {
   float sum = 0.0;
   for (size_t i = 0; i < size; ++i) {
-    float minus = fabs(w1[i] - w2[i]);
+    //float minus = fabs(w1[i] - w2[i]);
+    float minus = w1[i] - w2[i];
     sum += minus * minus;
   }
   return sqrt(sum);

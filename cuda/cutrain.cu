@@ -4,30 +4,40 @@
 #include "base.h"
 #include "curandom.h"
 #include "cutask.h"
-#include "culr.h"
 
-static const size_t MIN_BATCH_SIZE = 200;
+//static const size_t MIN_BATCH_SIZE = 200;
 
 extern "C" {
 void
 gpu_train(const TRAIN_ARG *parg) {
-  size_t i, j;
-
-  float *weights = (float*)calloc(parg->feature_size, sizeof(float));
-  size_t weights_size = sizeof(float) * parg->feature_size;
-
-  uint32_t *randoms = (uint32_t*)calloc(parg->feature_size > parg->data_size? parg->feature_size:parg->data_size, sizeof(uint32_t));
-  if (parg->randw) {
-    gpu_create_randoms(randoms, parg->feature_size);
-
-    for (i = 0; i < parg->feature_size; ++i) {
-      weights[i] = -1.0 + 2.0 * ((float)randoms[i] / UINT32_MAX); 
-    }
-  }
-
   #ifndef _PYTHON_MBSGD
   printf("\n# stochastic gradient descent\n");
   #endif
+
+  cudaSetDevice(0);
+
+  size_t i;
+
+  size_t weights_size = sizeof(float) * parg->feature_size;
+
+  float *d_weights;
+  cudaMalloc(&d_weights, weights_size);
+
+  float *weights = NULL; 
+  uint32_t *randoms = NULL;
+  if (parg->randw) {
+    randoms = (uint32_t*)calloc(parg->feature_size > parg->data_size ? parg->feature_size:parg->data_size, sizeof(uint32_t));
+    gpu_create_randoms(randoms, parg->feature_size);
+
+    weights = (float*)calloc(parg->feature_size, sizeof(float));
+    for (i = 0; i < parg->feature_size; ++i) {
+      weights[i] = -1.0 + 2.0 * ((float)randoms[i] / UINT32_MAX); 
+    }
+    cudaMemcpy(d_weights, weights, weights_size, cudaMemcpyHostToDevice);
+  }
+  else {
+    cudaMemset(d_weights, 0, weights_size);
+  }
 
   bool sprint = false;
   size_t n = 0;
@@ -36,80 +46,66 @@ gpu_train(const TRAIN_ARG *parg) {
   float norm = 1.0;
   float min_norm;
   float old_norm = 1.0;
-  #ifndef _PYTHON_MBSGD
-  float l1n = 0;
-  #endif
+
   float mu = 0;
-  float y1 = pow(59, -1.0 / parg->data_size); 
-  float y2 = 1.0;
-  float y3;
-  float yita;
+  //float y1 = pow(59, -1.0 / parg->data_size); 
+  //float y2 = 1.0;
+  //float y3;
+  //float yita;
   float c, d;
 
-  float *old_weights = (float*)calloc(parg->feature_size, sizeof(float));
-  float *total_l1 = (float*)calloc(parg->feature_size, sizeof(float));
-
-  uint32_t *index = (uint32_t*)calloc(parg->data_size, sizeof(uint32_t));
+  //uint32_t *index = (uint32_t*)calloc(parg->data_size, sizeof(uint32_t));
 
   uint32_t batch;
-  uint32_t orig_batch = (uint32_t)(log(parg->data_size / 10));
+  uint32_t orig_batch = (uint32_t)log(parg->data_size / 10);
   if (orig_batch <= 0) {
     orig_batch = 1;
   }
   batch = orig_batch;
 
-  for (i = 1; i < parg->data_size; ++i) {
-    index[i] = i;
+  //for (i = 1; i < parg->data_size; ++i) {
+  //  index[i] = i;
+  //}
+
+  float *d_labels;
+  cudaMalloc(&d_labels, sizeof(float) * parg->data_size);
+  cudaMemcpy(d_labels, parg->labels, sizeof(float) * parg->data_size, cudaMemcpyHostToDevice);
+
+  float *d_data;
+  cudaMalloc(&d_data, weights_size * parg->data_size);
+  for (i = 0; i < parg->data_size; ++i) {
+    cudaMemcpy(&d_data[i * parg->feature_size], parg->data[i], weights_size, cudaMemcpyHostToDevice);
   }
 
-  size_t pthread_batch_size, pthread_heavy, pthread_count;
-  size_t pthread_idx = 0;
-  if (parg->data_size < MIN_BATCH_SIZE) {
-    pthread_count = 1;
-    pthread_batch_size = parg->data_size;
-    pthread_heavy = 0;
-  }
-  else {
-    pthread_count = parg->data_size / MIN_BATCH_SIZE;
-    if (pthread_count >= parg->cpus) {
-      pthread_count = parg->cpus;
-    }
-    pthread_batch_size = parg->data_size / pthread_count;
-    pthread_heavy = parg->data_size % pthread_count;
-  }
 
-  cpu_set_t mask;
-  pthread_t *threads = (pthread_t*)calloc(pthread_count, sizeof(pthread_t));
-  pthread_attr_t *attrs = (pthread_attr_t*)calloc(pthread_count, sizeof(pthread_attr_t));
-  TASK_ARG *task_args = (TASK_ARG*)calloc(pthread_count, sizeof(TASK_ARG));
+  float *d_delta_weights;
+  cudaMalloc(&d_delta_weights, weights_size);
 
-  for (i = 0; i < pthread_count; ++i) {
-    task_args[i].start = pthread_idx;
-    pthread_idx += pthread_batch_size;
-    if (i < pthread_heavy) {
-      pthread_idx += 1;
-    }
-    task_args[i].end = pthread_idx;
+  float *d_norm;
+  cudaMalloc(&d_norm, sizeof(float));
 
-    CPU_ZERO(&mask);
-    CPU_SET(i, &mask);
-    pthread_attr_init(&attrs[i]);
-    pthread_attr_setaffinity_np(&attrs[i], sizeof(mask), &mask);
+  float *d_sprint_weights = NULL;
+  TASK_ARG task_arg = {
+    .d_labels = d_labels,
+    .d_data = d_data,
+    .d_weights = d_weights,
+    .d_delta_weights = d_delta_weights,
+    .d_norm = d_norm,
+    .parg_train = parg
+  };
 
-    task_args[i].parg_train = parg;
-    task_args[i].index = index;
-    task_args[i].weights = (float*)calloc(parg->feature_size, sizeof(float));
-    task_args[i].total_l1 = (float*)calloc(parg->feature_size, sizeof(float));
-    task_args[i].old_pd = (float*)calloc(parg->feature_size, sizeof(float));
-    task_args[i].v = (float*)calloc(parg->feature_size, sizeof(float));
-    task_args[i].z = (float*)calloc(orig_batch, sizeof(float));
-    task_args[i].batch_data = (float**)calloc(orig_batch, sizeof(float*));
-  }
+  uint32_t block_count = (parg->feature_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  task_arg.block_count = block_count;
+
+  float *d_out;
+  block_count = (block_count + 1) >> 1;
+  cudaMalloc(&d_out, sizeof(float) * (block_count + ((block_count + 1) >> 1)) * parg->data_size);
+  task_arg.d_out = d_out;
 
   while (norm > parg->eps) {
-    if (parg->shuf) {
-      gpu_shuffle(index, randoms, parg->data_size);
-    }
+    //if (parg->shuf) {
+    //  gpu_shuffle(index, randoms, parg->data_size);
+    //}
 
     if (!sprint) {
       d = norm / parg->eps;
@@ -137,58 +133,17 @@ gpu_train(const TRAIN_ARG *parg) {
       old_norm = norm;
     }
 
-    memcpy(old_weights, weights, weights_size);
+    task_arg.task_batch = batch;
+    task_arg.mu = mu;
 
-    y2 *= y1;
-    yita = parg->alpha * y2;
-    y3 = yita * parg->l1;
-
-    for (i = 0; i < pthread_count; ++i) {
-      task_args[i].task_batch = batch;
-      task_args[i].y3 = y3;
-      task_args[i].mu = mu;
-      task_args[i].yita = yita;
-      memcpy(task_args[i].weights, weights, weights_size);
-      memcpy(task_args[i].total_l1, total_l1, weights_size);
-      pthread_create(&threads[i], &attrs[i], gpu_task, &task_args[i]); 
-    }
-
-    memset(weights, 0, weights_size);
-    memset(total_l1, 0, weights_size);
-    mu = 0;
-    for (i = 0; i < pthread_count; ++i) {
-      pthread_join(threads[i], NULL);
-      mu += task_args[i].mu / pthread_count; 
-      for (j = 0; j < parg->feature_size; ++j) {
-        total_l1[j] += task_args[i].total_l1[j] / pthread_count;
-        weights[j] += task_args[i].weights[j] / pthread_count;
-      }
-    }
-
-    //for (i = 0; i < parg->feature_size; ++i) {
-    //  printf("%f ", weights[i]);
-    //}
-    //printf("\n");
-
-    //for (i = 0; i < parg->feature_size; ++i) {
-    //  printf("%f ", old_weights[i]);
-    //}
-    //printf("\n");
-
-    norm = gpu_vecnorm(weights, old_weights, parg->feature_size);
-
-#ifndef _PYTHON_MBSGD
-    if (n && n % 100 == 0) {       
-      l1n = gpu_l1norm(weights, parg->feature_size);
-      printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
-    }
-#endif
+    cudaMemset(d_delta_weights, 0, weights_size);
+    norm = gpu_task(&task_arg);
 
     ++n;
     if (sprint) {
       if (norm < min_norm) {
         min_norm = norm;
-        memcpy(parg->sprint_weights, task_args[0].weights, weights_size);
+        cudaMemcpy(d_sprint_weights, d_weights, weights_size, cudaMemcpyDeviceToDevice);
       }
 
       if(n > sprint_maxit) {
@@ -198,39 +153,29 @@ gpu_train(const TRAIN_ARG *parg) {
     else if (n > parg->maxit) {
       sprint = true;
       min_norm = norm;
-      memcpy(parg->sprint_weights, weights, weights_size);
 
       batch = 1;
+      cudaMalloc(&d_sprint_weights, weights_size);
+      cudaMemcpy(d_sprint_weights, d_weights, weights_size, cudaMemcpyDeviceToDevice);
     }               
   }
 
-#ifndef _PYTHON_MBSGD
-  l1n = gpu_l1norm(weights, parg->feature_size);
-  printf("# convergence: %1.4f l1-norm: %1.4e iterations: %lu batch: %d\n", norm, l1n, n, batch);     
-#endif
-
-  if (!sprint) {
-    memcpy(parg->sprint_weights, weights, weights_size);
+  if (sprint) {
+    cudaMemcpy(parg->sprint_weights, d_sprint_weights, weights_size, cudaMemcpyDeviceToHost);
+  }
+  else {
+    cudaMemcpy(parg->sprint_weights, d_weights, weights_size, cudaMemcpyDeviceToHost);
   }
 
-  for (i = 0; i < pthread_count; ++i) {
-    free(task_args[i].weights);
-    free(task_args[i].total_l1);
-    free(task_args[i].old_pd);
-    free(task_args[i].v);
-    free(task_args[i].z);
-    free(task_args[i].batch_data);
-    pthread_attr_destroy(&attrs[i]); 
-  }
-
-  free(threads);
-  free(attrs);
-  free(task_args);
+  cudaFree(d_labels);
+  cudaFree(d_data);
+  cudaFree(d_weights);
+  cudaFree(d_delta_weights);
+  cudaFree(d_sprint_weights);
+  cudaFree(d_out);
+  cudaFree(d_norm);
 
   free(randoms);
-  free(index);
-  free(old_weights);
   free(weights);
-  free(total_l1);
 }
 }

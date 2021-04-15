@@ -10,6 +10,7 @@ task(void *param) {
 
   float predicted, a, b, pd;
   memset(parg->old_pd, 0, sizeof(float) * parg->parg_train->feature_size);
+  memset(parg->v, 0, sizeof(float) * parg->parg_train->feature_size);
 
   i = parg->start;
   while (i < parg->end) {

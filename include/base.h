@@ -9,11 +9,19 @@
 #include <math.h>
 #include <fcntl.h>
 
+#ifdef _CUDA
+static const uint32_t BLOCK_SIZE = 32;
+//#include <cuda_runtime.h>
+#endif
+
+
 typedef struct {
   int shuf;
   int randw;
   unsigned int maxit;
+  #ifndef _CUDA
   unsigned short cpus;
+  #endif
   float alpha;
   float gama;
   float l1;
@@ -27,18 +35,29 @@ typedef struct {
 
 typedef struct {
   uint32_t task_batch;
-  uint32_t *index;
-  size_t start;
-  size_t end;
-  float y3;
   float mu;
   float yita;
+  #ifdef _CUDA
+  uint32_t block_count;
+  float *d_labels;
+  float *d_data;
+  float *d_weights;
+  float *d_delta_weights;
+  float *d_sprint_weights;
+  float *d_out;
+  float *d_norm;
+  #else
+  uint32_t *index;
+  float y3;
+  size_t start;
+  size_t end;
   float *weights;
+  float *z;
   float *total_l1;
   float *old_pd;
   float *v;
-  float *z;
   float **batch_data;
+  #endif
   const TRAIN_ARG *parg_train;
 } TASK_ARG;
 
