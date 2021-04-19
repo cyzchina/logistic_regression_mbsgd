@@ -8,7 +8,7 @@ INCLUDEDIR = include
 CPPFLAGS = $(addprefix -I,$(INCLUDEDIR)) 
 LDFLAGS = -lm
 
-CFLAGS += -O3 -Wall -D_GNU_SOURCE -g
+CFLAGS += -O3 -Wall -D_GNU_SOURCE
  
 EXE = lr_mbsgd
 CXX_SOURCES = $(foreach dir,$(SRCDIR), $(wildcard $(dir)/*.$(EXTENSION)))
@@ -30,7 +30,7 @@ AR = ar
  
 CCPLUS = g++
 NVCC = nvcc
-CUDA_FLAGS = --compiler-options -fPIC -shared -g
+CUDA_FLAGS = --compiler-options -fPIC -shared
 
 #CXX_SOURCES := src/main.c src/lr.c
 CXX_OBJECTS := obj/cuda/main.o obj/cuda/lr.o 
@@ -52,7 +52,6 @@ $(CUDA_OBJDIR)/%.o: $(CUDA_SRCDIR)/%.$(CUDA_EXTENSION)
 
 $(CUDA_EXE): $(CXX_OBJECTS) $(CUDA_TARGET)
 	$(CCPLUS) $(CFLAGS) $(CFLAGS) $(LDFLAGS) $(CXX_OBJECTS) -L. -l:$(CUDA_TARGET) -L/usr/local/cuda/lib64 -lcudart -o $@
-
 else
 LDFLAGS += -lpthread
 
@@ -77,4 +76,4 @@ cuda: $(CUDA_EXE)
 
 .PHONY: clean
 clean:
-	-rm -f $(CXX_OBJECTS) $(DEP_FILES) $(CUDA_OBJECTS) $(CUDA_TARGET) $(CUDA_EXE) $(EXE)
+	-rm -f $(CXX_OBJECTS) $(DEP_FILES) $(EXE) $(CUDA_OBJECTS) $(CUDA_TARGET) $(CUDA_EXE)
