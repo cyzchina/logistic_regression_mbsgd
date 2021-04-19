@@ -125,7 +125,7 @@ cu_delta_weights(const float *in, const float *data, float *delta_weights, unsig
 static __global__ void
 cu_adjust_weights(float *weights, float *delta_weights, unsigned int batch_count, unsigned int feature_size, float *norm) {
   unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx > feature_size) {
+  if (idx >= feature_size) {
     return;
   }
   float val = delta_weights[idx] / batch_count;
