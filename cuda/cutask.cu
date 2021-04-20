@@ -2,8 +2,6 @@
 #include <math.h>
 #include <cuda_runtime.h>
 
-static const uint32_t WARP_COUNT = (BLOCK_SIZE + 31 ) >> 5;
-
 typedef float (*PF_HANDLE)(float, const void*);
 
 //static float
@@ -98,7 +96,7 @@ reduce_sum(const float *in, unsigned short pf_idx, const void *params, float *ou
 }
 
 static __global__ void
-cu_delta_weights(const float *in, const float *data, float *delta_weights, unsigned int task_batch, unsigned int feature_size, unsigned int data_size, float gama, float yita) {
+cu_delta_weights(const float *in, const float *data, float *delta_weights, unsigned int task_batch, unsigned int feature_size, unsigned int data_size, float gama) {
   unsigned int feature_idx = blockIdx.y * blockDim.x + threadIdx.x;
   if (feature_idx >= feature_size) {
     return;
@@ -116,9 +114,6 @@ cu_delta_weights(const float *in, const float *data, float *delta_weights, unsig
   } 
   val /= i;
 
-  //float weight = weights[feature_idx];
-  //weight -= yita * gama * (1 + val);
-  //atomicAdd(&delta_weights[feature_idx], yita * val * (1 + gama));
   atomicAdd(&delta_weights[feature_idx], gama * val);
 }
 
@@ -136,58 +131,69 @@ cu_adjust_weights(float *weights, float *delta_weights, unsigned int batch_count
 extern "C" {
 float
 gpu_task(TASK_ARG *parg) {
-  bool b_first = true;
 
   dim3 block(BLOCK_SIZE), grid;
-
-  float *d_in, *d_out;
-  d_in = parg->d_data;
-  d_out = parg->d_out;
-
-  unsigned int count = parg->parg_train->feature_size;
-  unsigned int block_count = (parg->block_count + 1) >> 1;
   unsigned short pf_idx = 1;
-  size_t shared_size = sizeof(float) * WARP_COUNT * parg->parg_train->data_size;
-  while (count > 1) {
-    grid.x = parg->parg_train->data_size;
-    grid.y = block_count;
-    if (b_first) {
-      reduce_weighted_sum<<<grid, block, shared_size>>>(d_in, parg->d_weights, pf_idx, parg->d_labels, d_out, count);
-      b_first = false;
-    }
-    else {
-      reduce_sum<<<grid, block, shared_size>>>(d_in, pf_idx, parg->d_labels, d_out, count);
+
+  unsigned int rec_count;
+  for (size_t i = 0; i < parg->parg_train->data_size; i += rec_count) {
+    rec_count = parg->parg_train->data_size - i;
+    if (rec_count > parg->max_rec_count) {
+        rec_count = parg->max_rec_count;
     }
 
-    count = block_count;
-    block_count = (block_count + BLOCK_SIZE - 1) / BLOCK_SIZE; 
-    block_count = (block_count + 1) >> 1;
+    float *d_in = &parg->d_data[i * parg->parg_train->feature_size]; 
+    float *d_out = &parg->d_out[i];
+    float *d_labels = &parg->d_labels[i];
+    unsigned int count = parg->parg_train->feature_size;
+    unsigned int block_count = (parg->block_count + 1) >> 1;
 
-    d_in = d_out;
-    if (parg->d_out == d_in) {
-      d_out = &d_in[count * parg->parg_train->data_size];
+    size_t shared_size = sizeof(float) * WARP_COUNT * rec_count;
+    bool b_first = true;
+    while (count > 1) {
+      grid.x = rec_count; 
+      grid.y = block_count;
+      if (b_first) {
+        reduce_weighted_sum<<<grid, block, shared_size>>>(d_in, parg->d_weights, pf_idx, d_labels, d_out, count);
+        b_first = false;
+      }
+      else {
+        reduce_sum<<<grid, block, shared_size>>>(d_in, pf_idx, d_labels, d_out, count);
+      }
+
+      count = block_count;
+      block_count = (block_count + BLOCK_SIZE - 1) / BLOCK_SIZE; 
+      block_count = (block_count + 1) >> 1;
+
+      d_in = d_out;
+      if (&parg->d_out[i] == d_in) {
+        d_out = &d_in[count * rec_count];
+      }
+      else {
+        d_out = &parg->d_out[i];
+      }
     }
-    else {
-      d_out = parg->d_out;
+    if (&parg->d_out[i] != d_in) {
+      cudaMemcpy(&parg->d_out[i], d_in, sizeof(float) * rec_count, cudaMemcpyDeviceToDevice);
     }
   }
 
   //float *out = (float*)calloc(parg->parg_train->data_size, sizeof(float));
   //float *weights = (float*)calloc(parg->parg_train->feature_size, sizeof(float));
   //float *data = (float*)calloc(parg->parg_train->feature_size * parg->parg_train->data_size, sizeof(float));
-  //float *labels = (float*)calloc(parg->parg_train->data_size, sizeof(float));
-  //cudaMemcpy(out, d_in, sizeof(float) * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
+  //float *labels = (float*)calloc(rec_count, sizeof(float));
+  //cudaMemcpy(out, parg->d_out, sizeof(float) * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
   //cudaMemcpy(weights, parg->d_weights, sizeof(float) * parg->parg_train->feature_size, cudaMemcpyDeviceToHost);
   //cudaMemcpy(data, parg->d_data, sizeof(float) * parg->parg_train->feature_size * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
-  //cudaMemcpy(labels, parg->d_labels, sizeof(float) * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
-  //for (int i = 0; i < parg->parg_train->data_size; ++i) {
+  //cudaMemcpy(labels, parg->d_labels, sizeof(float) * rec_count, cudaMemcpyDeviceToHost);
+  //for (int j = 0; j < parg->parg_train->data_size; ++j) {
   //  float sum = 0;
-  //  for (int j = 0; j < parg->parg_train->feature_size; ++j) {
-  //    sum += data[i * parg->parg_train->feature_size + j] * weights[j];
+  //  for (int k = 0; k < parg->parg_train->feature_size; ++k) {
+  //    sum += data[j * parg->parg_train->feature_size + k] * weights[k];
   //  }
-  //  sum = sigmoid(sum) - labels[i];
-  //  if (fabs(sum - out[i]) > 1e-5) {
-  //    printf("%d: %f %f\n", i, sum, out[i]);
+  //  sum = sigmoid(sum) - labels[j];
+  //  if (fabs(sum - out[j]) > 1e-5) {
+  //    printf("%d: %f %f\n", j, sum, out[j]);
   //  }
   //}
   //free(out);
@@ -198,7 +204,8 @@ gpu_task(TASK_ARG *parg) {
   unsigned int batch_count = (parg->parg_train->data_size + parg->task_batch - 1) / parg->task_batch;
   grid.x = batch_count;
   grid.y = parg->block_count;
-  cu_delta_weights<<<grid, block>>>(d_in, parg->d_data, parg->d_delta_weights, parg->task_batch, parg->parg_train->feature_size, parg->parg_train->data_size, parg->parg_train->gama, parg->yita); 
+  cudaMemset(parg->d_delta_weights, 0, sizeof(float) * parg->parg_train->feature_size);
+  cu_delta_weights<<<grid, block>>>(parg->d_out, parg->d_data, parg->d_delta_weights, parg->task_batch, parg->parg_train->feature_size, parg->parg_train->data_size, parg->parg_train->gama);
 
   grid.x = parg->block_count;
   grid.y = 1;

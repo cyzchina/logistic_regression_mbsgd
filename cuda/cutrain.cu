@@ -5,8 +5,6 @@
 #include "curandom.h"
 #include "cutask.h"
 
-//static const size_t MIN_BATCH_SIZE = 200;
-
 extern "C" {
 void
 gpu_train(const TRAIN_ARG *parg) {
@@ -14,6 +12,10 @@ gpu_train(const TRAIN_ARG *parg) {
   printf("\n# stochastic gradient descent\n");
   #endif
 
+  cudaDeviceProp deviceProps;
+  cudaGetDeviceProperties(&deviceProps, 0);
+  size_t max_rec_count = deviceProps.sharedMemPerBlock / sizeof(float) / WARP_COUNT;
+  
   cudaSetDevice(0);
 
   size_t i;
@@ -84,13 +86,19 @@ gpu_train(const TRAIN_ARG *parg) {
   float *d_norm;
   cudaMalloc(&d_norm, sizeof(float));
 
+  float *d_total_l1;
+  cudaMalloc(&d_total_l1, weights_size);
+  cudaMemset(d_total_l1, 0, weights_size);
+
   float *d_sprint_weights = NULL;
   TASK_ARG task_arg = {
+    .max_rec_count = max_rec_count, 
     .d_labels = d_labels,
     .d_data = d_data,
     .d_weights = d_weights,
     .d_delta_weights = d_delta_weights,
     .d_norm = d_norm,
+    .d_total_l1 = d_total_l1,
     .parg_train = parg
   };
 
@@ -174,6 +182,7 @@ gpu_train(const TRAIN_ARG *parg) {
   cudaFree(d_sprint_weights);
   cudaFree(d_out);
   cudaFree(d_norm);
+  cudaFree(d_total_l1);
 
   free(randoms);
   free(weights);

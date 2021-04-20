@@ -11,6 +11,7 @@
 
 #ifdef _CUDA
 static const uint32_t BLOCK_SIZE = 32;
+static const uint32_t WARP_COUNT = (BLOCK_SIZE + 31 ) >> 5;
 //#include <cuda_runtime.h>
 #endif
 
@@ -36,9 +37,9 @@ typedef struct {
 typedef struct {
   uint32_t task_batch;
   float mu;
-  float yita;
   #ifdef _CUDA
   uint32_t block_count;
+  size_t max_rec_count;
   float *d_labels;
   float *d_data;
   float *d_weights;
@@ -46,9 +47,11 @@ typedef struct {
   float *d_sprint_weights;
   float *d_out;
   float *d_norm;
+  float *d_total_l1;
   #else
   uint32_t *index;
   float y3;
+  float yita;
   size_t start;
   size_t end;
   float *weights;
