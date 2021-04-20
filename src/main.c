@@ -2,7 +2,13 @@
 #include <sys/sysinfo.h>
 
 #include "base.h"
+
+#ifdef _CUDA
+#include "cutrain.h"
+#else
 #include "train.h"
+#endif
+
 #include "lr.h"
 
 static const size_t BUF_SIZE = 4096;
@@ -22,13 +28,14 @@ usage(const char *prog) {
   printf("-l <float> L1 regularization weight. default 0.1\n"); 
   printf("-t <file>  Test file to classify\n");     
   printf("-r <float> Randomise weights between -1 and 1, otherwise 0\n");    
+  #ifndef _CUDA
   printf("-c <int>   cpu cores. default 4\n");    
+  #endif
 }
 
 bool
-read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
+read_data(const char *data_file, float **pplabels, float ***pppdata, size_t *pdata_size, size_t *pfeature_size) {
   char buf[BUF_SIZE];
-  
   //size_t read_size = readlink(data_file, buf, BUF_SIZE);
   //if (read_size > 0) {
   //  buf[read_size] = 0;
@@ -44,12 +51,13 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
   *pdata_size = 0;
 
   size_t feature_size = *pfeature_size? *pfeature_size:MAX_FEATURE_SIZE;
-  double *features = (double*)calloc(feature_size, sizeof(double));
+
+  float *features = (float*)calloc(feature_size, sizeof(float));
+  float label = 0;
 
   unsigned int available_data_size = 0;
 
   bool overflow = false;
-  double label = 0;
   size_t col_idx = 0;
   size_t i, j = 0;
   size_t idx = 0;
@@ -81,7 +89,7 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 
         if (col_idx >= feature_size) {
           printf("overflow\n");
-          memset(features, 0, sizeof(double) * feature_size);
+          memset(features, 0, sizeof(float) * feature_size);
           col_idx = 0;
           overflow = true;
           continue;
@@ -102,19 +110,19 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 
         if (available_data_size <= 0) {
           available_data_size = ACC_DATA_SIZE;
-          *pppdata = (double**)realloc(*pppdata, sizeof(double*) * (*pdata_size + ACC_DATA_SIZE)); 
-          *pplabels = (double*)realloc(*pplabels, sizeof(double) * (*pdata_size + ACC_DATA_SIZE)); 
+          *pppdata = (float**)realloc(*pppdata, sizeof(float*) * (*pdata_size + ACC_DATA_SIZE)); 
+          *pplabels = (float*)realloc(*pplabels, sizeof(float) * (*pdata_size + ACC_DATA_SIZE)); 
         }
         (*pplabels)[*pdata_size] = label;
 
         if (0 == *pfeature_size) {
           feature_size = *pfeature_size = col_idx;
-          (*pppdata)[*pdata_size] = (double*)realloc(features, sizeof(double) * feature_size);
+          (*pppdata)[*pdata_size] = (float*)realloc(features, sizeof(float) * feature_size);
         }
         else {
           (*pppdata)[*pdata_size] = features;
         }
-        features = (double*)calloc(feature_size, sizeof(double));
+        features = (float*)calloc(feature_size, sizeof(float));
 
         col_idx = 0;
         j = i + 1;
@@ -144,7 +152,7 @@ read_data(const char *data_file, double **pplabels, double ***pppdata, size_t *p
 } 
 
 void
-model_evaluation_index(const char *test_file, size_t feature_size, double *weights) {
+model_evaluation_index(const char *test_file, size_t feature_size, float *weights) {
   size_t i, j;
   uint32_t sparsity = 0;
   for (i = 0; i < feature_size; ++i) {
@@ -152,10 +160,12 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
       ++sparsity;
     }
   }
-  printf("# sparsity:    %1.4f (%d/%lu)\n", (double)sparsity / feature_size, sparsity, feature_size);
 
-  double **test_data = NULL;
-  double *test_labels = NULL;
+  printf("# sparsity:    %1.4f (%d/%lu)\n", (float)sparsity / feature_size, sparsity, feature_size);
+
+  float **test_data = NULL;
+  float *test_labels = NULL;
+
   size_t test_data_size = 0;
   size_t test_feature_size = feature_size;
   if (!read_data(test_file, &test_labels, &test_data, &test_data_size, &test_feature_size)) {
@@ -163,11 +173,13 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
   }
 
   printf("\n# classifying\n");
-  double tp = 0, fp = 0, tn = 0, fn = 0;
 
   size_t t_idx = -1, f_idx = test_data_size;
-  double *ary_predicted = calloc(test_data_size, sizeof(double));
-  double predicted;
+
+  float *ary_predicted = calloc(test_data_size, sizeof(float));
+  float predicted;
+
+  double tp = 0, fp = 0, tn = 0, fn = 0;
 
   for (i = 0; i < test_data_size; ++i) {
     predicted = classify(test_data[i], weights, test_feature_size);
@@ -231,20 +243,11 @@ model_evaluation_index(const char *test_file, size_t feature_size, double *weigh
 
 int
 main (int argc, char* const argv[]) {
-  // Learning rate
-  double alpha = 0.001;
-
-  // L1 penalty weight
-  double l1 = 0.0001;
-
   // Max iterations
   unsigned int maxit = 500;
 
   // Shuffle data set
   int shuf = 1;
-
-  // Convergence threshold
-  double eps = 0.005;
 
   // Verbose
   //int verbose = 0;
@@ -252,7 +255,16 @@ main (int argc, char* const argv[]) {
   // Randomise weights
   int randw = 0;
 
+  #ifndef _CUDA
   int cpus = 4;
+  #endif
+
+  // Learning rate
+  float alpha = 0.001;
+  // L1 penalty weight
+  float l1 = 0.0001;
+  // Convergence threshold
+  float eps = 0.005;
 
   // Read model file
   //const char *model_in = NULL;
@@ -284,7 +296,11 @@ main (int argc, char* const argv[]) {
     return -1;
   }
 
+  #ifdef _CUDA
+  while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:"))) {
+  #else
   while (-1 != (ch = getopt(argc, argv, "s:i:e:a:l:t:r:c:"))) {
+  #endif
     switch(ch) {
       case 's':
         shuf = atoi(optarg);
@@ -308,22 +324,28 @@ main (int argc, char* const argv[]) {
       case 'r':
         randw = 1;
         break;
+      #ifndef _CUDA
       case 'c':
         cpus = atoi(optarg);
         break;
+      #endif
       default:
         usage(argv[0]);
         return -1;
     }
   }
 
+  #ifndef _CUDA
   int nprocs = get_nprocs();
   if (nprocs < cpus) {
     cpus = nprocs;
   }
+  #endif
 
-  double **data = NULL;
-  double *labels = NULL;
+  float **data = NULL;
+  float *labels = NULL;
+  float gama = 0.9;
+
   size_t data_size = 0;
   size_t feature_size = 0;
   if (!read_data(train_file, &labels, &data, &data_size, &feature_size)) {
@@ -332,13 +354,16 @@ main (int argc, char* const argv[]) {
 
   printf("# data_size:    %lu\n", data_size);
   printf("# feature_size: %lu\n", feature_size);
+  #ifndef _CUDA
   printf("# cpus:         %d\n", cpus);
+  #endif
 
-  double gama = 0.9;
-  double *sprint_weights = (double*)calloc(feature_size, sizeof(double));
+  float *sprint_weights = (float*)calloc(feature_size, sizeof(float));
 
   TRAIN_ARG arg;
+  #ifndef _CUDA
   arg.cpus = cpus;
+  #endif
   arg.alpha = alpha;
   arg.gama = gama;
   arg.l1 = l1;
@@ -354,7 +379,11 @@ main (int argc, char* const argv[]) {
 
   struct timeval tv1, tv2;
   gettimeofday(&tv1, NULL);
+  #ifdef _CUDA
+  gpu_train(&arg);
+  #else
   train(&arg); 
+  #endif
   gettimeofday(&tv2, NULL);
 
   time_t cost_sec = tv2.tv_sec - tv1.tv_sec;
