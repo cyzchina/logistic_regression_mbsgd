@@ -143,38 +143,47 @@ gpu_task(TASK_ARG *parg) {
     }
 
     float *d_in = &parg->d_data[i * parg->parg_train->feature_size]; 
-    float *d_out = &parg->d_out[i];
     float *d_labels = &parg->d_labels[i];
     unsigned int count = parg->parg_train->feature_size;
-    unsigned int block_count = (parg->block_count + 1) >> 1;
-
     size_t shared_size = sizeof(float) * WARP_COUNT * rec_count;
-    bool b_first = true;
-    while (count > 1) {
-      grid.x = rec_count; 
+    grid.x = rec_count;
+
+    unsigned int block_count = (parg->block_count + 1) >> 1;
+    if (1 == block_count) {
       grid.y = block_count;
-      if (b_first) {
-        reduce_weighted_sum<<<grid, block, shared_size>>>(d_in, parg->d_weights, pf_idx, d_labels, d_out, count);
-        b_first = false;
-      }
-      else {
-        reduce_sum<<<grid, block, shared_size>>>(d_in, pf_idx, d_labels, d_out, count);
-      }
-
-      count = block_count;
-      block_count = (block_count + BLOCK_SIZE - 1) / BLOCK_SIZE; 
-      block_count = (block_count + 1) >> 1;
-
-      d_in = d_out;
-      if (&parg->d_out[i] == d_in) {
-        d_out = &d_in[count * rec_count];
-      }
-      else {
-        d_out = &parg->d_out[i];
-      }
+      reduce_weighted_sum<<<grid, block, shared_size>>>(d_in, parg->d_weights, pf_idx, d_labels, &parg->d_out[i], count);
+      continue;
     }
-    if (&parg->d_out[i] != d_in) {
-      cudaMemcpy(&parg->d_out[i], d_in, sizeof(float) * rec_count, cudaMemcpyDeviceToDevice);
+
+    bool b_first = true;
+    float *d_tmp = parg->d_tmp;
+    while (count > 1) {
+      grid.y = block_count;
+      if (1 == block_count) {
+        reduce_sum<<<grid, block, shared_size>>>(d_in, pf_idx, d_labels, &parg->d_out[i], count);
+        count = 1;
+      }
+      else {
+        if (b_first) {
+          reduce_weighted_sum<<<grid, block, shared_size>>>(d_in, parg->d_weights, pf_idx, d_labels, d_tmp, count);
+          b_first = false;
+        }
+        else {
+          reduce_sum<<<grid, block, shared_size>>>(d_in, pf_idx, d_labels, d_tmp, count);
+        }
+
+        count = block_count;
+        block_count = (block_count + BLOCK_SIZE - 1) / BLOCK_SIZE; 
+        block_count = (block_count + 1) >> 1;
+
+        d_in = d_tmp;
+        if (parg->d_tmp == d_in) {
+          d_tmp = &d_in[count * rec_count];
+        }
+        else {
+          d_tmp = parg->d_tmp;
+        }
+      }
     }
   }
 

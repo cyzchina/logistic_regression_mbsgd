@@ -90,6 +90,9 @@ gpu_train(const TRAIN_ARG *parg) {
   cudaMalloc(&d_total_l1, weights_size);
   cudaMemset(d_total_l1, 0, weights_size);
 
+  float *d_out;
+  cudaMalloc(&d_out, sizeof(float) * parg->data_size);
+
   float *d_sprint_weights = NULL;
   TASK_ARG task_arg = {
     .max_rec_count = max_rec_count, 
@@ -97,6 +100,7 @@ gpu_train(const TRAIN_ARG *parg) {
     .d_data = d_data,
     .d_weights = d_weights,
     .d_delta_weights = d_delta_weights,
+    .d_out = d_out,
     .d_norm = d_norm,
     .d_total_l1 = d_total_l1,
     .parg_train = parg
@@ -105,10 +109,12 @@ gpu_train(const TRAIN_ARG *parg) {
   uint32_t block_count = (parg->feature_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
   task_arg.block_count = block_count;
 
-  float *d_out;
+  float *d_tmp = NULL;
   block_count = (block_count + 1) >> 1;
-  cudaMalloc(&d_out, sizeof(float) * (block_count + ((block_count + 1) >> 1)) * parg->data_size);
-  task_arg.d_out = d_out;
+  if (block_count > 1) {
+    cudaMalloc(&d_tmp, sizeof(float) * (block_count + ((block_count + 1) >> 1)) * max_rec_count);
+  }
+  task_arg.d_tmp = d_tmp;
 
   while (norm > parg->eps) {
     //if (parg->shuf) {
@@ -181,6 +187,7 @@ gpu_train(const TRAIN_ARG *parg) {
   cudaFree(d_delta_weights);
   cudaFree(d_sprint_weights);
   cudaFree(d_out);
+  cudaFree(d_tmp);
   cudaFree(d_norm);
   cudaFree(d_total_l1);
 

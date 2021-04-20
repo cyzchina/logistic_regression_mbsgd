@@ -46,6 +46,7 @@ typedef struct {
   float *d_delta_weights;
   float *d_sprint_weights;
   float *d_out;
+  float *d_tmp;
   float *d_norm;
   float *d_total_l1;
   #else
