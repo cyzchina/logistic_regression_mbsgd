@@ -4,15 +4,6 @@
 
 typedef float (*PF_HANDLE)(float, const void*);
 
-//static float
-//sigmoid(float x) {
-//  static float overflow = 20.0;
-//  if (x > overflow) x = overflow;
-//  if (x < -overflow) x = -overflow;
-//
-//  return 1.0/(1.0 + exp(-x));
-//}
-
 static __device__ float
 cu_sigmoid(float x) {
   static float overflow = 20.0;
@@ -186,29 +177,6 @@ gpu_task(TASK_ARG *parg) {
       }
     }
   }
-
-  //float *out = (float*)calloc(parg->parg_train->data_size, sizeof(float));
-  //float *weights = (float*)calloc(parg->parg_train->feature_size, sizeof(float));
-  //float *data = (float*)calloc(parg->parg_train->feature_size * parg->parg_train->data_size, sizeof(float));
-  //float *labels = (float*)calloc(rec_count, sizeof(float));
-  //cudaMemcpy(out, parg->d_out, sizeof(float) * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
-  //cudaMemcpy(weights, parg->d_weights, sizeof(float) * parg->parg_train->feature_size, cudaMemcpyDeviceToHost);
-  //cudaMemcpy(data, parg->d_data, sizeof(float) * parg->parg_train->feature_size * parg->parg_train->data_size, cudaMemcpyDeviceToHost);
-  //cudaMemcpy(labels, parg->d_labels, sizeof(float) * rec_count, cudaMemcpyDeviceToHost);
-  //for (int j = 0; j < parg->parg_train->data_size; ++j) {
-  //  float sum = 0;
-  //  for (int k = 0; k < parg->parg_train->feature_size; ++k) {
-  //    sum += data[j * parg->parg_train->feature_size + k] * weights[k];
-  //  }
-  //  sum = sigmoid(sum) - labels[j];
-  //  if (fabs(sum - out[j]) > 1e-5) {
-  //    printf("%d: %f %f\n", j, sum, out[j]);
-  //  }
-  //}
-  //free(out);
-  //free(weights);
-  //free(data);
-  //free(labels);
 
   unsigned int batch_count = (parg->parg_train->data_size + parg->task_batch - 1) / parg->task_batch;
   grid.x = batch_count;
