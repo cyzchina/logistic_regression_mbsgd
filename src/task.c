@@ -8,12 +8,13 @@ task(void *param) {
   uint32_t last_batch, cur_batch;
   size_t i, j, k;
 
-  double predicted, a, b, pd;
-
-  memset(parg->old_pd, 0, sizeof(double) * parg->parg_train->feature_size);
+  float predicted, a, b, pd;
+  memset(parg->old_pd, 0, sizeof(float) * parg->parg_train->feature_size);
+  memset(parg->v, 0, sizeof(float) * parg->parg_train->feature_size);
 
   i = parg->start;
   while (i < parg->end) {
+    parg->mu += parg->y3;
     last_batch = parg->end - i;
     cur_batch = last_batch >= parg->task_batch? parg->task_batch:last_batch;
 
@@ -22,13 +23,14 @@ task(void *param) {
       predicted = classify(parg->batch_data[j], parg->weights, parg->parg_train->feature_size);
       parg->z[j] = predicted - parg->parg_train->labels[parg->index[i + j]];
     }
-    parg->mu += parg->y3;
+
     for (j = 0; j < parg->parg_train->feature_size; ++j) {
       pd = 0;
       for (k = 0; k < cur_batch; ++k) {
         pd += parg->z[k] * parg->batch_data[k][j];
       }
       pd /= cur_batch;
+
       parg->v[j] = pd + parg->parg_train->gama * (parg->v[j] + pd - parg->old_pd[j]);
       parg->old_pd[j] = pd;
       parg->weights[j] -= parg->yita * parg->v[j];

@@ -9,36 +9,59 @@
 #include <math.h>
 #include <fcntl.h>
 
+#ifdef _CUDA
+static const uint32_t BLOCK_SIZE = 32;
+static const uint32_t WARP_COUNT = (BLOCK_SIZE + 31 ) >> 5;
+//#include <cuda_runtime.h>
+#endif
+
+
 typedef struct {
-  double alpha;
-  double gama;
-  double l1;
-  unsigned int maxit;
   int shuf;
-  unsigned short cpus;
-  double eps;
   int randw;
-  double *labels;
-  double **data;
+  unsigned int maxit;
+  #ifndef _CUDA
+  unsigned short cpus;
+  #endif
+  float alpha;
+  float gama;
+  float l1;
+  float eps;
+  float *labels;
+  float **data;
+  float *sprint_weights;
   size_t data_size;
   size_t feature_size;
-  double *sprint_weights;
 } TRAIN_ARG;
 
 typedef struct {
   uint32_t task_batch;
+  float mu;
+  #ifdef _CUDA
+  uint32_t block_count;
+  size_t max_rec_count;
+  float *d_labels;
+  float *d_data;
+  float *d_weights;
+  float *d_delta_weights;
+  float *d_sprint_weights;
+  float *d_out;
+  float *d_tmp;
+  float *d_norm;
+  float *d_total_l1;
+  #else
+  uint32_t *index;
+  float y3;
+  float yita;
   size_t start;
   size_t end;
-  double y3;
-  double mu;
-  double yita;
-  uint32_t *index;
-  double *weights;
-  double *total_l1;
-  double *old_pd;
-  double *v;
-  double *z;
-  double **batch_data;
+  float *weights;
+  float *z;
+  float *total_l1;
+  float *old_pd;
+  float *v;
+  float **batch_data;
+  #endif
   const TRAIN_ARG *parg_train;
 } TASK_ARG;
 
