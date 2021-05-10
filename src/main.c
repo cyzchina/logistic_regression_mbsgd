@@ -390,7 +390,7 @@ main (int argc, char* const argv[]) {
   suseconds_t cost_us =  tv2.tv_usec - tv1.tv_usec;
   if (cost_us < 0) {
     --cost_sec;
-    cost_us = 1000000 - cost_us;
+    cost_us += 1000000;
   }
   printf("# train cost:  %ld.%06ld\n", cost_sec, cost_us);
 
